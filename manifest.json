@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "manifest_version": 1,
   "author": "DM",
-  "action": {
-    "title": "Mugen Background",
-    "icon": "icon.svg", 
+  "background": {
     "url": "index.html"
   }
 }
