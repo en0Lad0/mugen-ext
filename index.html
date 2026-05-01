@@ -6,14 +6,15 @@
 </head>
 <body>
     <script type="module">
-        import OBR from "@owlbear-rodeo/sdk";
+        // ดึง Owlbear SDK ผ่านลิงก์ออนไลน์ของ esm.sh แทน
+        import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
 
         OBR.onReady(() => {
             OBR.contextMenu.create({
                 id: "mugen-context-menu",
                 icons: [
                     {
-                        icon: "/icon.svg", // อย่าลืมใส่ไฟล์ icon.svg ไว้ในโปรเจกต์
+                        icon: "icon.svg", 
                         label: "Mugen",
                         filter: {
                             every: [{ key: "layer", value: "CHARACTER" }]
@@ -24,7 +25,7 @@
                     const sourceId = context.items[0].id;
                     OBR.popover.open({
                         id: "mugen-popover",
-                        url: `/mugen.html?sourceId=${sourceId}`,
+                        url: `mugen.html?sourceId=${sourceId}`,
                         height: 220,
                         width: 250
                     });
