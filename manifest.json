@@ -3,7 +3,5 @@
   "version": "1.0.0",
   "manifest_version": 1,
   "author": "DM",
-  "background": {
-    "url": "index.html"
-  }
+  "icon": "icon.svg"
 }
