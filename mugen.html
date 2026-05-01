@@ -12,13 +12,14 @@
     </style>
 </head>
 <body>
-    <h4 id="status">เลือก Skill ที่ต้องการร่าย</h4>
+    <h4 id="status">เลือก Skill</h4>
     <button class="btn aka" onclick="selectSkill('Aka', 'Aka.gif')">Aka (Red)</button>
     <button class="btn ao" onclick="selectSkill('Ao', 'Ao.gif')">Ao (Blue)</button>
     <button class="btn murasaki" onclick="selectSkill('Murasaki', 'Murazaki.gif')">Murasaki (Purple)</button>
 
     <script type="module">
-        import OBR from "@owlbear-rodeo/sdk";
+        // ดึง Owlbear SDK ผ่านลิงก์ออนไลน์ของ esm.sh แทน
+        import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
 
         const urlParams = new URLSearchParams(window.location.search);
         const sourceId = urlParams.get('sourceId');
@@ -28,15 +29,13 @@
         window.selectSkill = async (skillName, gifFileName) => {
             selectedSkill = skillName;
             skillGif = gifFileName;
-            document.getElementById('status').innerText = `กำลังร่าย ${skillName}... (คลิกที่ Token เป้าหมาย)`;
+            document.getElementById('status').innerText = `ร่าย ${skillName}... (คลิก Token เป้าหมาย)`;
 
-            // ดักจับการเปลี่ยนการเลือก Token
             const unsubscribe = OBR.selectedItems.onChange(async (items) => {
                 const targetId = items[0];
-                // เช็คว่าเป้าหมายไม่ใช่ตัวผู้ร่ายเอง
                 if (targetId && targetId !== sourceId) {
-                    unsubscribe(); // ยกเลิกการดักจับเมื่อได้เป้าหมายแล้ว
-                    document.getElementById('status').innerText = `โจมตีเป้าหมาย!`;
+                    unsubscribe(); 
+                    document.getElementById('status').innerText = `โจมตี!`;
                     await playAnimation(sourceId, targetId, skillGif);
                     setTimeout(() => OBR.popover.close("mugen-popover"), 800);
                 }
@@ -51,31 +50,27 @@
             if(!source || !target) return;
 
             const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
-            
-            // สร้าง URL ของรูปภาพแบบเต็ม (เพื่อให้ Owlbear ดึงรูปจาก GitHub Pages ไปแสดงได้ถูกต้อง)
             const fullImageUrl = new URL(gifFileName, window.location.href).href;
             
-            // เปลี่ยนจากประเภท SHAPE เป็น IMAGE
             const projectile = {
                 id: projectileId,
                 type: "IMAGE",
                 image: {
                     url: fullImageUrl,
-                    width: 150, // ปรับขนาดเอฟเฟกต์ตามต้องการ (หน่วยเป็น Pixel)
+                    width: 150, 
                     height: 150, 
                     mime: "image/gif"
                 },
                 position: source.position,
                 layer: "ATTACHMENT",
-                disableHit: true, // ทำให้คลิกโดนเอฟเฟกต์ไม่ได้ จะได้ไม่กวนการเล่น
+                disableHit: true, 
                 locked: true,
                 visible: true
             };
 
             await OBR.scene.items.addItems([projectile]);
 
-            // ระบบ Animation ทำงานที่ 30 FPS
-            const frames = 15; // ความเร็วในการพุ่งชน ยิ่งน้อยยิ่งพุ่งไว
+            const frames = 15; 
             let currentFrame = 0;
             const dx = (target.position.x - source.position.x) / frames;
             const dy = (target.position.y - source.position.y) / frames;
@@ -89,7 +84,6 @@
 
                 if (currentFrame >= frames) {
                     clearInterval(animInterval);
-                    // ลบ Effect ทิ้งเมื่อถึงเป้าหมาย
                     setTimeout(() => {
                         OBR.scene.items.deleteItems([projectileId]);
                     }, 100);
