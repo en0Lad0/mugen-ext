@@ -5,7 +5,7 @@
   "author": "DM",
   "action": {
     "title": "Mugen Background",
-    "icon": "/icon.svg",
-    "url": "/index.html"
+    "icon": "icon.svg", 
+    "url": "index.html"
   }
 }
