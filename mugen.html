@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mugen Skills</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; color: white; background: #222; margin: 0; padding: 10px; }
+        .btn { width: 100%; padding: 10px; margin: 5px 0; cursor: pointer; color: white; border: none; font-weight: bold; border-radius: 5px;}
+        .aka { background: #d32f2f; }
+        .ao { background: #1976d2; }
+        .murasaki { background: #7b1fa2; }
+    </style>
+</head>
+<body>
+    <h4 id="status">เลือก Skill ที่ต้องการร่าย</h4>
+    <button class="btn aka" onclick="selectSkill('Aka', 'Aka.gif')">Aka (Red)</button>
+    <button class="btn ao" onclick="selectSkill('Ao', 'Ao.gif')">Ao (Blue)</button>
+    <button class="btn murasaki" onclick="selectSkill('Murasaki', 'Murazaki.gif')">Murasaki (Purple)</button>
+
+    <script type="module">
+        import OBR from "@owlbear-rodeo/sdk";
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const sourceId = urlParams.get('sourceId');
+        let selectedSkill = null;
+        let skillGif = null;
+
+        window.selectSkill = async (skillName, gifFileName) => {
+            selectedSkill = skillName;
+            skillGif = gifFileName;
+            document.getElementById('status').innerText = `กำลังร่าย ${skillName}... (คลิกที่ Token เป้าหมาย)`;
+
+            // ดักจับการเปลี่ยนการเลือก Token
+            const unsubscribe = OBR.selectedItems.onChange(async (items) => {
+                const targetId = items[0];
+                // เช็คว่าเป้าหมายไม่ใช่ตัวผู้ร่ายเอง
+                if (targetId && targetId !== sourceId) {
+                    unsubscribe(); // ยกเลิกการดักจับเมื่อได้เป้าหมายแล้ว
+                    document.getElementById('status').innerText = `โจมตีเป้าหมาย!`;
+                    await playAnimation(sourceId, targetId, skillGif);
+                    setTimeout(() => OBR.popover.close("mugen-popover"), 800);
+                }
+            });
+        };
+
+        async function playAnimation(sourceId, targetId, gifFileName) {
+            const items = await OBR.scene.items.getItems([sourceId, targetId]);
+            const source = items.find(i => i.id === sourceId);
+            const target = items.find(i => i.id === targetId);
+
+            if(!source || !target) return;
+
+            const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
+            
+            // สร้าง URL ของรูปภาพแบบเต็ม (เพื่อให้ Owlbear ดึงรูปจาก GitHub Pages ไปแสดงได้ถูกต้อง)
+            const fullImageUrl = new URL(gifFileName, window.location.href).href;
+            
+            // เปลี่ยนจากประเภท SHAPE เป็น IMAGE
+            const projectile = {
+                id: projectileId,
+                type: "IMAGE",
+                image: {
+                    url: fullImageUrl,
+                    width: 150, // ปรับขนาดเอฟเฟกต์ตามต้องการ (หน่วยเป็น Pixel)
+                    height: 150, 
+                    mime: "image/gif"
+                },
+                position: source.position,
+                layer: "ATTACHMENT",
+                disableHit: true, // ทำให้คลิกโดนเอฟเฟกต์ไม่ได้ จะได้ไม่กวนการเล่น
+                locked: true,
+                visible: true
+            };
+
+            await OBR.scene.items.addItems([projectile]);
+
+            // ระบบ Animation ทำงานที่ 30 FPS
+            const frames = 15; // ความเร็วในการพุ่งชน ยิ่งน้อยยิ่งพุ่งไว
+            let currentFrame = 0;
+            const dx = (target.position.x - source.position.x) / frames;
+            const dy = (target.position.y - source.position.y) / frames;
+
+            const animInterval = setInterval(async () => {
+                currentFrame++;
+                await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
+                    itemsToUpdate[0].position.x = source.position.x + (dx * currentFrame);
+                    itemsToUpdate[0].position.y = source.position.y + (dy * currentFrame);
+                });
+
+                if (currentFrame >= frames) {
+                    clearInterval(animInterval);
+                    // ลบ Effect ทิ้งเมื่อถึงเป้าหมาย
+                    setTimeout(() => {
+                        OBR.scene.items.deleteItems([projectileId]);
+                    }, 100);
+                }
+            }, 1000 / 30); 
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mugen Background</title>
+</head>
+<body>
+    <script type="module">
+        import OBR from "@owlbear-rodeo/sdk";
+
+        OBR.onReady(() => {
+            OBR.contextMenu.create({
+                id: "mugen-context-menu",
+                icons: [
+                    {
+                        icon: "/icon.svg", // อย่าลืมใส่ไฟล์ icon.svg ไว้ในโปรเจกต์
+                        label: "Mugen",
+                        filter: {
+                            every: [{ key: "layer", value: "CHARACTER" }]
+                        }
+                    }
+                ],
+                onClick: (context) => {
+                    const sourceId = context.items[0].id;
+                    OBR.popover.open({
+                        id: "mugen-popover",
+                        url: `/mugen.html?sourceId=${sourceId}`,
+                        height: 220,
+                        width: 250
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
