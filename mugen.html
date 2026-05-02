@@ -24,7 +24,6 @@
         <div>Target: <span id="status-target" class="wait">❌ รอเล็งเป้า</span></div>
     </div>
 
-    <!-- ปุ่มเรียก Tool -->
     <button id="btn-target" class="btn target-btn" onclick="activateTargetTool()">
         🎯 1. กดเพื่อเปิดโหมดเล็งศัตรู
     </button>
@@ -50,14 +49,14 @@
         let currentSkillName = null;
         let currentGif = null;
         const targetMarkId = "mugen-target-mark";
-        const targetToolId = "en0lad0.mugen/target-tool"; 
-        const targetModeId = "en0lad0.mugen/target-mode"; 
+        const targetToolId = "en0lad0.mugen/target-tool";
 
-        async function updateCaster() {
+        async function updateState() {
             const metadata = await OBR.room.getMetadata();
             casterId = metadata["en0lad0.mugen/caster"];
+            targetId = metadata["en0lad0.mugen/target"]; // อ่านค่าจากที่ background.html ส่งมา
+
             const casterStatus = document.getElementById('status-caster');
-            
             if (casterId) {
                 casterStatus.innerText = "✅ ล็อกคนร่ายแล้ว";
                 casterStatus.className = "ready";
@@ -65,90 +64,31 @@
                 casterStatus.innerText = "❌ รอคลิกขวาตัวเอง";
                 casterStatus.className = "wait";
             }
+
+            const targetStatus = document.getElementById('status-target');
+            if (targetId) {
+                targetStatus.innerText = "✅ ล็อกเป้าศัตรูแล้ว";
+                targetStatus.className = "ready";
+                document.getElementById('btn-target').innerText = "🎯 เปลี่ยนเป้าหมาย";
+            } else {
+                targetStatus.innerText = "❌ รอเล็งเป้า";
+                targetStatus.className = "wait";
+                document.getElementById('btn-target').innerText = "🎯 1. กดเพื่อเปิดโหมดเล็งศัตรู";
+            }
+
             checkReady();
         }
 
         OBR.onReady(async () => {
-            await updateCaster();
-            OBR.room.onMetadataChange(async () => await updateCaster());
-
-            OBR.tool.create({
-                id: targetToolId,
-                icons: [{
-                    icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
-                    label: "Mugen Targeting",
-                }],
-            });
-
-            OBR.tool.createMode({
-                id: targetModeId,
-                icons: [{
-                    icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
-                    label: "Select Target",
-                    filter: { activeTools: [targetToolId] },
-                }],
-                // จุดที่แก้: ใช้ event เพื่อดึง ID ของสิ่งที่ปลายเมาส์คลิกโดน
-                onToolClick: async (context, event) => {
-                    const clickedId = event.target; // ID ของ Token ที่โดนคลิก
-
-                    if (!clickedId) return; // ถ้าคลิกโดนพื้นเปล่าๆ ให้ข้ามไป
-
-                    // ดึงข้อมูล Token ตัวที่โดนคลิกมาเช็ก
-                    const items = await OBR.scene.items.getItems([clickedId]);
-                    if (items.length === 0) return;
-                    
-                    const clickedItem = items[0];
-
-                    // เช็กว่าเป็นตัวละคร และไม่ใช่ตัวเอง
-                    if (clickedItem.layer === "CHARACTER" && clickedItem.id !== casterId) {
-                        targetId = clickedItem.id;
-                        
-                        document.getElementById('btn-target').innerText = "🎯 เปลี่ยนเป้าหมาย";
-                        document.getElementById('status-target').innerText = "✅ ล็อกเป้าแล้ว";
-                        document.getElementById('status-target').className = "ready";
-                        
-                        await drawTargetMark(targetId);
-                        checkReady();
-
-                        // เล็งเสร็จ เปลี่ยนเมาส์กลับให้เป็นปกติ
-                        OBR.tool.activateTool("owlbear.rodeo/core/default"); 
-                    } else if (clickedItem.id === casterId) {
-                        OBR.notification.show("ยิงใส่ตัวเองไม่ได้นะ!", "WARNING");
-                    }
-                }
-            });
+            await updateState();
+            // เมื่อเล็งเป้าสำเร็จ ระบบจะรู้ตัวและอัปเดตแผงควบคุมอัตโนมัติ
+            OBR.room.onMetadataChange(async () => await updateState());
         });
 
         window.activateTargetTool = async () => {
-            document.getElementById('btn-target').innerText = "⏳ กำลังเล็ง... (คลิกที่เป้าหมาย)";
+            document.getElementById('btn-target').innerText = "⏳ กำลังเล็ง... (คลิกที่ศัตรู)";
             await OBR.tool.activateTool(targetToolId);
         };
-
-        async function drawTargetMark(tId) {
-            await OBR.scene.items.deleteItems([targetMarkId]);
-            const items = await OBR.scene.items.getItems([tId]);
-            if (items.length === 0) return;
-            const target = items[0];
-            const markSize = target.image ? Math.max(target.image.width, target.image.height) * 1.5 : 300;
-
-            const mark = {
-                id: targetMarkId,
-                type: "SHAPE",
-                shapeType: "CIRCLE",
-                width: markSize,
-                height: markSize,
-                strokeColor: "#ff0000",
-                strokeWidth: 10,
-                fillOpacity: 0,
-                position: target.position,
-                attachedTo: tId, 
-                layer: "ATTACHMENT",
-                disableHit: true,
-                locked: true,
-                visible: true
-            };
-            await OBR.scene.items.addItems([mark]);
-        }
 
         function checkReady() {
             const skillSection = document.getElementById('skill-section');
@@ -176,11 +116,8 @@
             
             setTimeout(async () => {
                 await OBR.scene.items.deleteItems([targetMarkId]);
-                targetId = null;
-                document.getElementById('status-target').innerText = "❌ รอเล็งเป้า";
-                document.getElementById('status-target').className = "wait";
-                document.getElementById('btn-target').innerText = "🎯 1. กดเพื่อเปิดโหมดเล็งศัตรู";
-                checkReady();
+                // ล้างค่าเป้าหมายหลังจากยิงเสร็จ
+                OBR.room.setMetadata({ "en0lad0.mugen/target": undefined });
                 OBR.popover.close("mugen-popover");
             }, 800);
         };
