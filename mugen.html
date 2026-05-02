@@ -50,7 +50,7 @@
         let currentSkillName = null;
         let currentGif = null;
         const targetMarkId = "mugen-target-mark";
-        const targetToolId = "en0lad0.mugen/target-tool"; // ชื่อ Tool ต้องมีจุด . ตามกฎ
+        const targetToolId = "en0lad0.mugen/target-tool"; 
         const targetModeId = "en0lad0.mugen/target-mode"; 
 
         async function updateCaster() {
@@ -72,31 +72,35 @@
             await updateCaster();
             OBR.room.onMetadataChange(async () => await updateCaster());
 
-            // 1. สร้าง Tool บนระบบของ Owlbear
             OBR.tool.create({
                 id: targetToolId,
                 icons: [{
-                    icon: "https://en0lad0.github.io/mugen-ext/icon.svg", // ใช้รูปมุเก็นเป็นไอคอนเมาส์ได้เลย
+                    icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
                     label: "Mugen Targeting",
                 }],
             });
 
-            // 2. สร้าง Mode การทำงานของ Tool นี้ (ดักจับการคลิก)
             OBR.tool.createMode({
                 id: targetModeId,
                 icons: [{
                     icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
                     label: "Select Target",
-                    filter: {
-                        activeTools: [targetToolId],
-                    },
+                    filter: { activeTools: [targetToolId] },
                 }],
-                // เมื่อ Tool นี้ถูกใช้งาน และคลิกโดนอะไรบางอย่างบนกระดาน
-                onToolClick: async (context) => {
-                    const clickedItem = context.localItems[0] || context.remoteItems[0];
+                // จุดที่แก้: ใช้ event เพื่อดึง ID ของสิ่งที่ปลายเมาส์คลิกโดน
+                onToolClick: async (context, event) => {
+                    const clickedId = event.target; // ID ของ Token ที่โดนคลิก
+
+                    if (!clickedId) return; // ถ้าคลิกโดนพื้นเปล่าๆ ให้ข้ามไป
+
+                    // ดึงข้อมูล Token ตัวที่โดนคลิกมาเช็ก
+                    const items = await OBR.scene.items.getItems([clickedId]);
+                    if (items.length === 0) return;
                     
-                    // เช็คว่าคลิกโดน Token ตัวละคร และไม่ใช่ตัวเอง
-                    if (clickedItem && clickedItem.layer === "CHARACTER" && clickedItem.id !== casterId) {
+                    const clickedItem = items[0];
+
+                    // เช็กว่าเป็นตัวละคร และไม่ใช่ตัวเอง
+                    if (clickedItem.layer === "CHARACTER" && clickedItem.id !== casterId) {
                         targetId = clickedItem.id;
                         
                         document.getElementById('btn-target').innerText = "🎯 เปลี่ยนเป้าหมาย";
@@ -106,19 +110,17 @@
                         await drawTargetMark(targetId);
                         checkReady();
 
-                        // เปลี่ยนเมาส์กลับเป็นโหมดปกติ (เลิกเล็ง)
+                        // เล็งเสร็จ เปลี่ยนเมาส์กลับให้เป็นปกติ
                         OBR.tool.activateTool("owlbear.rodeo/core/default"); 
-                    } else {
-                        OBR.notification.show("ต้องคลิกที่ Token ของเป้าหมายเท่านั้น", "WARNING");
+                    } else if (clickedItem.id === casterId) {
+                        OBR.notification.show("ยิงใส่ตัวเองไม่ได้นะ!", "WARNING");
                     }
                 }
             });
         });
 
-        // เมื่อกดปุ่ม "โหมดเล็งศัตรู"
         window.activateTargetTool = async () => {
             document.getElementById('btn-target').innerText = "⏳ กำลังเล็ง... (คลิกที่เป้าหมาย)";
-            // บังคับเปลี่ยนเมาส์เป็น Tool มุเก็นที่เราสร้างไว้
             await OBR.tool.activateTool(targetToolId);
         };
 
