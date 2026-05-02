@@ -54,7 +54,6 @@
         let currentGif = null;
         const targetMarkId = "mugen-target-mark";
 
-        // ฟังก์ชันดึงสถานะคนร่าย
         async function updateCaster() {
             const metadata = await OBR.room.getMetadata();
             casterId = metadata["en0lad0.mugen/caster"];
@@ -74,9 +73,10 @@
             await updateCaster();
             OBR.room.onMetadataChange(async () => await updateCaster());
 
-            // ระบบดักจับการคลิก Token ขณะเปิดโหมดเล็งเป้า (เหมือนปากกา)
-            OBR.selectedItems.onChange(async (items) => {
-                if (isTargeting && items.length === 1 && items[0] !== casterId) {
+            // แก้ไข: เปลี่ยนคำสั่งให้เป็นเวอร์ชันที่ Owlbear จับได้ 100%
+            OBR.player.onChange(async (player) => {
+                const items = player.selection;
+                if (isTargeting && items && items.length === 1 && items[0] !== casterId) {
                     targetId = items[0];
                     isTargeting = false; // ปิดโหมดเล็ง
                     
@@ -84,41 +84,44 @@
                     document.getElementById('status-target').innerText = "✅ ล็อกเป้าแล้ว";
                     document.getElementById('status-target').className = "ready";
                     
-                    // สร้างวงแหวนล็อกเป้าที่ตัวศัตรู
                     await drawTargetMark(targetId);
                     checkReady();
                 }
             });
         });
 
-        // เมื่อกดปุ่มเล็งเป้าหมาย
         window.startTargeting = async () => {
             isTargeting = true;
             document.getElementById('btn-target').innerText = "⏳ กำลังเล็ง... (คลิกที่ศัตรู 1 ที)";
-            OBR.notification.show("โหมดเล็งเป้า: โปรดคลิกที่ Token ศัตรูบนกระดาน", "INFO");
+            
+            // ล้างการคลิกเดิมออก เพื่อบังคับให้ตอนเราคลิกศัตรู ระบบจะรับรู้ว่ามี Event เกิดขึ้นใหม่จริงๆ
+            const currentSelection = await OBR.player.getSelection();
+            if(currentSelection && currentSelection.length > 0) {
+                await OBR.player.deselect(currentSelection);
+            }
         };
 
-        // ฟังก์ชันวาดวงแหวนล็อกเป้าสีแดง
         async function drawTargetMark(tId) {
-            // ลบของเก่าออกก่อนกันซ้อนกัน
             await OBR.scene.items.deleteItems([targetMarkId]);
 
             const items = await OBR.scene.items.getItems([tId]);
             if (items.length === 0) return;
             const target = items[0];
 
-            // สร้างวงกลมสีแดงที่ยึดติดกับตัวศัตรู
+            // ป้องกัน Error กรณี Token ไม่มี Image
+            const markSize = target.image ? Math.max(target.image.width, target.image.height) * 1.5 : 300;
+
             const mark = {
                 id: targetMarkId,
                 type: "SHAPE",
                 shapeType: "CIRCLE",
-                width: (target.image ? target.image.width : 300) * 1.3,
-                height: (target.image ? target.image.height : 300) * 1.3,
+                width: markSize,
+                height: markSize,
                 strokeColor: "#ff0000",
-                strokeWidth: 15,
+                strokeWidth: 10,
                 fillOpacity: 0,
                 position: target.position,
-                attachedTo: tId, // ทำให้วงแหวนเคลื่อนที่ตามศัตรูได้
+                attachedTo: tId, 
                 layer: "ATTACHMENT",
                 disableHit: true,
                 locked: true,
@@ -153,7 +156,6 @@
             await playAnimation(casterId, targetId, currentGif);
             
             setTimeout(async () => {
-                // ยิงเสร็จ ให้ลบวงแหวนเป้าหมายทิ้ง และรีเซ็ตค่า
                 await OBR.scene.items.deleteItems([targetMarkId]);
                 OBR.player.deselect([targetId]);
                 
@@ -167,7 +169,6 @@
             }, 800);
         };
 
-        // ระบบ Animation
         async function playAnimation(sourceId, targetId, gifFileName) {
             const items = await OBR.scene.items.getItems([sourceId, targetId]);
             const source = items.find(i => i.id === sourceId);
