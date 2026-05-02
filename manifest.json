@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "manifest_version": 1,
   "author": "DM",
-  "icon": "icon.svg",
-  "background_url": "index.html"
+  "action": {
+    "title": "Mugen",
+    "icon": "icon.svg",
+    "popover": "mugen.html",
+    "width": 250,
+    "height": 220
+  }
 }
