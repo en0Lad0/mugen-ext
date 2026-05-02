@@ -10,6 +10,7 @@
         .aka { background: #d32f2f; }
         .ao { background: #1976d2; }
         .murasaki { background: #7b1fa2; }
+        .target-btn { background: #e91e63; font-size: 15px; margin-bottom: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         .confirm { background: #4caf50; font-size: 16px; padding: 15px; border: 2px solid white; box-shadow: 0 0 10px #4caf50; animation: pulse 1.5s infinite; margin-top: 10px;}
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
         .status-box { background: #333; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: left; line-height: 1.5;}
@@ -19,22 +20,28 @@
 </head>
 <body>
     <div class="status-box">
-        <div>1. ผู้ร่าย: <span id="status-caster" class="wait">❌ รอคลิกขวาที่ Token ตัวเอง</span></div>
-        <div>2. เป้าหมาย: <span id="status-target" class="wait">❌ รอคลิกเลือก Token ศัตรู</span></div>
+        <div>Caster: <span id="status-caster" class="wait">❌ รอคลิกขวาตัวเอง</span></div>
+        <div>Target: <span id="status-target" class="wait">❌ รอเล็งเป้า</span></div>
     </div>
+
+    <!-- ปุ่มปากกาสำหรับกดเล็งเป้า -->
+    <button id="btn-target" class="btn target-btn" onclick="startTargeting()">
+        🎯 1. กดเพื่อเล็งศัตรู
+    </button>
 
     <!-- โซนเลือกสกิล จะถูกล็อกจนกว่าจะล็อกเป้าครบ -->
     <div id="skill-section" style="opacity: 0.3; pointer-events: none;">
+        <p style="margin: 5px 0; font-size: 12px; color: #aaa;">2. เลือกสกิลที่จะร่าย</p>
         <button class="btn aka" onclick="prepareSkill('Aka', 'Aka.gif')">Aka (Red)</button>
         <button class="btn ao" onclick="prepareSkill('Ao', 'Ao.gif')">Ao (Blue)</button>
         <button class="btn murasaki" onclick="prepareSkill('Murasaki', 'Murazaki.gif')">Murasaki (Purple)</button>
     </div>
 
-    <!-- โซนปุ่มยืนยัน จะซ่อนอยู่จนกว่าจะเลือกสกิล -->
+    <!-- โซนปุ่มยืนยัน -->
     <div id="confirm-section" style="display: none;">
         <hr style="border-color: #444; margin: 15px 0;">
         <p style="margin: 0 0 10px 0;">เตรียมยิง: <b id="selected-skill-text" style="color: yellow; font-size: 16px;"></b></p>
-        <button class="btn confirm" onclick="fireSkill()">🔥 กดยืนยันการยิง! 🔥</button>
+        <button class="btn confirm" onclick="fireSkill()">🔥 3. กดยืนยันการยิง! 🔥</button>
     </div>
 
     <script type="module">
@@ -42,39 +49,88 @@
 
         let casterId = null;
         let targetId = null;
+        let isTargeting = false;
         let currentSkillName = null;
         let currentGif = null;
+        const targetMarkId = "mugen-target-mark";
 
-        // ฟังก์ชันอัปเดตหน้าจอ UI
-        async function updateUI() {
+        // ฟังก์ชันดึงสถานะคนร่าย
+        async function updateCaster() {
             const metadata = await OBR.room.getMetadata();
-            casterId = metadata["mugen-ext/casterId"];
-
-            const selection = await OBR.player.getSelection();
-            targetId = selection.length === 1 ? selection[0] : null;
-
-            const statusCaster = document.getElementById('status-caster');
-            const statusTarget = document.getElementById('status-target');
-            const skillSection = document.getElementById('skill-section');
-
+            casterId = metadata["en0lad0.mugen/caster"];
+            const casterStatus = document.getElementById('status-caster');
+            
             if (casterId) {
-                statusCaster.innerText = "✅ ล็อกเป้าผู้ร่ายแล้ว";
-                statusCaster.className = "ready";
+                casterStatus.innerText = "✅ ล็อกคนร่ายแล้ว";
+                casterStatus.className = "ready";
             } else {
-                statusCaster.innerText = "❌ รอคลิกขวาที่ตัวเอง";
-                statusCaster.className = "wait";
+                casterStatus.innerText = "❌ รอคลิกขวาตัวเอง";
+                casterStatus.className = "wait";
             }
+            checkReady();
+        }
 
-            if (targetId && targetId !== casterId) {
-                statusTarget.innerText = "✅ เล็งเป้าหมายแล้ว";
-                statusTarget.className = "ready";
-            } else {
-                statusTarget.innerText = "❌ รอคลิกศัตรูบนแมพ";
-                statusTarget.className = "wait";
-            }
+        OBR.onReady(async () => {
+            await updateCaster();
+            OBR.room.onMetadataChange(async () => await updateCaster());
 
-            // ถ้ามีครบทั้งคนยิงและคนโดนยิง ปลดล็อกปุ่มสกิล
-            if (casterId && targetId && targetId !== casterId) {
+            // ระบบดักจับการคลิก Token ขณะเปิดโหมดเล็งเป้า (เหมือนปากกา)
+            OBR.selectedItems.onChange(async (items) => {
+                if (isTargeting && items.length === 1 && items[0] !== casterId) {
+                    targetId = items[0];
+                    isTargeting = false; // ปิดโหมดเล็ง
+                    
+                    document.getElementById('btn-target').innerText = "🎯 เปลี่ยนเป้าหมาย";
+                    document.getElementById('status-target').innerText = "✅ ล็อกเป้าแล้ว";
+                    document.getElementById('status-target').className = "ready";
+                    
+                    // สร้างวงแหวนล็อกเป้าที่ตัวศัตรู
+                    await drawTargetMark(targetId);
+                    checkReady();
+                }
+            });
+        });
+
+        // เมื่อกดปุ่มเล็งเป้าหมาย
+        window.startTargeting = async () => {
+            isTargeting = true;
+            document.getElementById('btn-target').innerText = "⏳ กำลังเล็ง... (คลิกที่ศัตรู 1 ที)";
+            OBR.notification.show("โหมดเล็งเป้า: โปรดคลิกที่ Token ศัตรูบนกระดาน", "INFO");
+        };
+
+        // ฟังก์ชันวาดวงแหวนล็อกเป้าสีแดง
+        async function drawTargetMark(tId) {
+            // ลบของเก่าออกก่อนกันซ้อนกัน
+            await OBR.scene.items.deleteItems([targetMarkId]);
+
+            const items = await OBR.scene.items.getItems([tId]);
+            if (items.length === 0) return;
+            const target = items[0];
+
+            // สร้างวงกลมสีแดงที่ยึดติดกับตัวศัตรู
+            const mark = {
+                id: targetMarkId,
+                type: "SHAPE",
+                shapeType: "CIRCLE",
+                width: (target.image ? target.image.width : 300) * 1.3,
+                height: (target.image ? target.image.height : 300) * 1.3,
+                strokeColor: "#ff0000",
+                strokeWidth: 15,
+                fillOpacity: 0,
+                position: target.position,
+                attachedTo: tId, // ทำให้วงแหวนเคลื่อนที่ตามศัตรูได้
+                layer: "ATTACHMENT",
+                disableHit: true,
+                locked: true,
+                visible: true
+            };
+
+            await OBR.scene.items.addItems([mark]);
+        }
+
+        function checkReady() {
+            const skillSection = document.getElementById('skill-section');
+            if (casterId && targetId) {
                 skillSection.style.opacity = "1";
                 skillSection.style.pointerEvents = "auto";
             } else {
@@ -84,14 +140,6 @@
             }
         }
 
-        OBR.onReady(async () => {
-            await updateUI();
-            // คอยดักจับว่ามีการคลิกเป้าหมายใหม่หรือเปลี่ยนคนร่ายหรือไม่
-            OBR.player.onChange(async () => await updateUI());
-            OBR.room.onMetadataChange(async () => await updateUI());
-        });
-
-        // ฟังก์ชันเตรียมความพร้อมก่อนยิง
         window.prepareSkill = (skillName, gifName) => {
             currentSkillName = skillName;
             currentGif = gifName;
@@ -99,16 +147,22 @@
             document.getElementById('confirm-section').style.display = "block";
         };
 
-        // ฟังก์ชันกดยิงจริง
         window.fireSkill = async () => {
             document.getElementById('confirm-section').style.display = "none";
-            document.getElementById('status-target').innerText = "💥 กำลังโจมตี!!";
             
             await playAnimation(casterId, targetId, currentGif);
             
-            setTimeout(() => {
-                // ยิงเสร็จให้ปลดการเลือกเป้าหมาย และปิดหน้าต่าง
+            setTimeout(async () => {
+                // ยิงเสร็จ ให้ลบวงแหวนเป้าหมายทิ้ง และรีเซ็ตค่า
+                await OBR.scene.items.deleteItems([targetMarkId]);
                 OBR.player.deselect([targetId]);
+                
+                targetId = null;
+                document.getElementById('status-target').innerText = "❌ รอเล็งเป้า";
+                document.getElementById('status-target').className = "wait";
+                document.getElementById('btn-target').innerText = "🎯 1. กดเพื่อเล็งศัตรู";
+                checkReady();
+
                 OBR.popover.close("mugen-popover");
             }, 800);
         };
@@ -119,13 +173,9 @@
             const source = items.find(i => i.id === sourceId);
             const target = items.find(i => i.id === targetId);
 
-            if(!source || !target) {
-                OBR.notification.show("เกิดข้อผิดพลาด: หาเป้าหมายไม่เจอ", "ERROR");
-                return;
-            }
+            if(!source || !target) return;
 
             const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
-            // ลิงก์ตรงไปที่ GitHub ของคุณ เพื่อแก้ปัญหาโหลดภาพไม่ขึ้น
             const fullImageUrl = new URL(gifFileName, "https://en0lad0.github.io/mugen-ext/").href;
             
             const projectile = {
@@ -138,7 +188,7 @@
                     mime: "image/gif"
                 },
                 position: source.position,
-                layer: "NOTE", // เปลี่ยนเป็นชั้น NOTE เพื่อให้อยู่บนสุดเสมอ
+                layer: "NOTE", 
                 disableHit: true, 
                 locked: true,
                 visible: true
@@ -146,7 +196,7 @@
 
             await OBR.scene.items.addItems([projectile]);
 
-            const frames = 20; // ปรับความสมูท
+            const frames = 20; 
             let currentFrame = 0;
             const dx = (target.position.x - source.position.x) / frames;
             const dy = (target.position.y - source.position.y) / frames;
@@ -161,7 +211,7 @@
                 if (currentFrame >= frames) {
                     clearInterval(animInterval);
                     setTimeout(() => {
-                        OBR.scene.items.deleteItems([projectileId]); // ลบเมื่อถึงเป้าหมาย
+                        OBR.scene.items.deleteItems([projectileId]); 
                     }, 100);
                 }
             }, 1000 / 30); 
