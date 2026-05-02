@@ -8,26 +8,89 @@
     <script type="module">
         import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
 
+        const targetMarkId = "mugen-target-mark";
+        const targetToolId = "en0lad0.mugen/target-tool";
+        const targetModeId = "en0lad0.mugen/target-mode";
+
         OBR.onReady(() => {
+            // 1. ระบบเลือกคนร่าย (คลิกขวา)
             OBR.contextMenu.create({
                 id: "mugen-set-caster",
-                icons: [
-                    {
-                        icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
-                        label: "Set as Mugen Caster",
-                        filter: {
-                            every: [{ key: "layer", value: "CHARACTER" }]
-                        }
-                    }
-                ],
+                icons: [{
+                    icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
+                    label: "Set as Mugen Caster",
+                    filter: { every: [{ key: "layer", value: "CHARACTER" }] }
+                }],
                 onClick: (context) => {
                     const casterId = context.items[0].id;
-                    // แก้ชื่อ Key ให้มีจุด (.) เพื่อให้ Owlbear ยอมบันทึกข้อมูล
                     OBR.room.setMetadata({ "en0lad0.mugen/caster": casterId });
                     OBR.notification.show("ล็อกเป้าคนร่ายมุเก็นเรียบร้อย!", "SUCCESS");
                 }
             });
+
+            // 2. ลงทะเบียน Tool เล็งเป้าให้ฝังในระบบ Owlbear
+            OBR.tool.create({
+                id: targetToolId,
+                icons: [{
+                    icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
+                    label: "Mugen Targeting",
+                }],
+            });
+
+            // 3. ระบบทำงานของ Tool ปากกา (ทำงานแม้ Popover จะถูกปิดไปแล้ว)
+            OBR.tool.createMode({
+                id: targetModeId,
+                icons: [{
+                    icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
+                    label: "Select Target",
+                    filter: { activeTools: [targetToolId] },
+                }],
+                onToolClick: async (context, event) => {
+                    const clickedId = event.target;
+                    if (!clickedId) return;
+
+                    const items = await OBR.scene.items.getItems([clickedId]);
+                    if (items.length === 0) return;
+                    const clickedItem = items[0];
+
+                    const metadata = await OBR.room.getMetadata();
+                    const casterId = metadata["en0lad0.mugen/caster"];
+
+                    if (clickedItem.layer === "CHARACTER" && clickedItem.id !== casterId) {
+                        // บันทึก ID ศัตรูลงในฐานข้อมูลกลางของห้อง
+                        OBR.room.setMetadata({ "en0lad0.mugen/target": clickedItem.id });
+                        
+                        await drawTargetMark(clickedItem.id);
+                        
+                        // ปลดเมาส์กลับเป็นปกติ
+                        OBR.tool.activateTool("owlbear.rodeo/core/default");
+                    } else if (clickedItem.id === casterId) {
+                        OBR.notification.show("ยิงใส่ตัวเองไม่ได้นะ!", "WARNING");
+                    }
+                }
+            });
         });
+
+        async function drawTargetMark(tId) {
+            await OBR.scene.items.deleteItems([targetMarkId]);
+            const items = await OBR.scene.items.getItems([tId]);
+            if (items.length === 0) return;
+            const target = items[0];
+            const markSize = target.image ? Math.max(target.image.width, target.image.height) * 1.5 : 300;
+
+            const mark = {
+                id: targetMarkId,
+                type: "SHAPE",
+                shapeType: "CIRCLE",
+                width: markSize, height: markSize,
+                strokeColor: "#ff0000", strokeWidth: 10, fillOpacity: 0,
+                position: target.position,
+                attachedTo: tId, 
+                layer: "ATTACHMENT",
+                disableHit: true, locked: true, visible: true
+            };
+            await OBR.scene.items.addItems([mark]);
+        }
     </script>
 </body>
 </html>
