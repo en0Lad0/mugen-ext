@@ -22,10 +22,8 @@
                 ],
                 onClick: (context) => {
                     const casterId = context.items[0].id;
-                    // บันทึก ID ของคนร่าย (Token ที่โดนคลิกขวา) ฝังลงไปในห้อง
-                    OBR.room.setMetadata({ "mugen-ext/casterId": casterId });
-                    
-                    // ให้มีแจ้งเตือนเด้งขึ้นมาตรงกลางจอว่าเซ็ตสำเร็จแล้ว
+                    // แก้ชื่อ Key ให้มีจุด (.) เพื่อให้ Owlbear ยอมบันทึกข้อมูล
+                    OBR.room.setMetadata({ "en0lad0.mugen/caster": casterId });
                     OBR.notification.show("ล็อกเป้าคนร่ายมุเก็นเรียบร้อย!", "SUCCESS");
                 }
             });
