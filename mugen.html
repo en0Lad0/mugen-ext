@@ -12,37 +12,46 @@
     </style>
 </head>
 <body>
-    <h4 id="status">เลือก Skill</h4>
+    <h4 id="status">กำลังโหลด...</h4>
+    <!-- สังเกตว่าเอา / หน้าชื่อไฟล์ออกแล้ว -->
     <button class="btn aka" onclick="selectSkill('Aka', 'Aka.gif')">Aka (Red)</button>
     <button class="btn ao" onclick="selectSkill('Ao', 'Ao.gif')">Ao (Blue)</button>
     <button class="btn murasaki" onclick="selectSkill('Murasaki', 'Murazaki.gif')">Murasaki (Purple)</button>
 
     <script type="module">
-        // ดึง Owlbear SDK ผ่านลิงก์ออนไลน์ของ esm.sh แทน
         import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const sourceId = urlParams.get('sourceId');
-        let selectedSkill = null;
-        let skillGif = null;
+        let sourceId = null;
 
-        window.selectSkill = async (skillName, gifFileName) => {
-            selectedSkill = skillName;
-            skillGif = gifFileName;
-            document.getElementById('status').innerText = `ร่าย ${skillName}... (คลิก Token เป้าหมาย)`;
+        OBR.onReady(async () => {
+            const selection = await OBR.player.getSelection();
+            if (selection && selection.length === 1) {
+                sourceId = selection[0];
+                document.getElementById('status').innerText = "เลือก Skill ที่ต้องการร่าย";
+            } else {
+                document.getElementById('status').innerText = "กรุณาคลิกเลือก Token ตัวเองก่อนเปิดเมนู";
+            }
+        });
+
+        window.selectSkill = async (skillName, gifPath) => {
+            if (!sourceId) {
+                document.getElementById('status').innerText = "ต้องเลือก Token ของตัวเองก่อน!";
+                return;
+            }
+            
+            document.getElementById('status').innerText = `กำลังร่าย ${skillName}... (คลิกที่เป้าหมาย)`;
 
             const unsubscribe = OBR.selectedItems.onChange(async (items) => {
                 const targetId = items[0];
                 if (targetId && targetId !== sourceId) {
                     unsubscribe(); 
                     document.getElementById('status').innerText = `โจมตี!`;
-                    await playAnimation(sourceId, targetId, skillGif);
-                    setTimeout(() => OBR.popover.close("mugen-popover"), 800);
+                    await playAnimation(sourceId, targetId, gifPath);
                 }
             });
         };
 
-        async function playAnimation(sourceId, targetId, gifFileName) {
+        async function playAnimation(sourceId, targetId, gifPath) {
             const items = await OBR.scene.items.getItems([sourceId, targetId]);
             const source = items.find(i => i.id === sourceId);
             const target = items.find(i => i.id === targetId);
@@ -50,7 +59,8 @@
             if(!source || !target) return;
 
             const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
-            const fullImageUrl = new URL(gifFileName, window.location.href).href;
+            // บรรทัดนี้จะสร้างลิงก์รูปภาพให้ถูกต้องตามโฟลเดอร์บน GitHub อัตโนมัติ
+            const fullImageUrl = new URL(gifPath, window.location.href).href;
             
             const projectile = {
                 id: projectileId,
