@@ -15,10 +15,10 @@
         let targetTokenId = null;
 
         OBR.onReady(() => {
-            // 1. ระบบ Set Caster (คลิกขวา)
+            // 1. ระบบ Set Caster (คลิกขวา) -> ลบ Filter Layer ทิ้ง คลิกขวาได้ทุกสิ่ง
             OBR.contextMenu.create({
                 id: "mugen-set-caster",
-                icons: [{ icon: ICON_URL, label: "Set as Mugen Caster", filter: { every: [{ key: "layer", value: "CHARACTER" }] } }],
+                icons: [{ icon: ICON_URL, label: "Set as Mugen Caster" }], 
                 onClick: (context) => {
                     const casterId = context.items[0].id;
                     OBR.room.setMetadata({ "en0lad0.mugen/caster": casterId });
@@ -26,7 +26,7 @@
                 }
             });
 
-            // 2. สร้าง Tool หลักฝังเข้า Owlbear (เหมือน Embers)
+            // 2. สร้าง Tool
             OBR.tool.create({
                 id: TOOL_ID,
                 icons: [{ icon: ICON_URL, label: "Mugen Toolkit" }],
@@ -34,7 +34,7 @@
                 defaultMetadata: {}
             });
 
-            // 3. สร้างโหมดเล็งเป้า (เมาส์ปากกา)
+            // 3. สร้างโหมดเล็งเป้า -> ลบการบล็อก Layer ทิ้ง เล็งได้ทุกประเภท
             OBR.tool.createMode({
                 id: MODE_TARGET,
                 icons: [{ icon: ICON_URL, label: "🎯 เล็งศัตรู (คลิกที่บอร์ด)", filter: { activeTools: [TOOL_ID] } }],
@@ -43,7 +43,7 @@
                     if (!clickedId) return;
 
                     const items = await OBR.scene.items.getItems([clickedId]);
-                    if (items.length > 0 && items[0].layer === "CHARACTER") {
+                    if (items.length > 0) { // แค่มีของให้คลิกโดน ก็ล็อกเป้าได้เลย!
                         targetTokenId = clickedId;
                         await drawTargetMark(targetTokenId);
                         OBR.notification.show("ล็อกเป้าแล้ว! กดสกิลที่แถบด้านบนได้เลย", "INFO");
@@ -51,7 +51,7 @@
                 }
             });
 
-            // 4. ปุ่ม Action สกิลบน Toolbar แถบบนสุด
+            // 4. ปุ่ม Action สกิลบน Toolbar
             OBR.tool.createAction({
                 id: "mugen-action-aka",
                 icons: [{ icon: ICON_URL, label: "🔴 ยิง Aka (Red)", filter: { activeTools: [TOOL_ID] } }],
@@ -79,7 +79,7 @@
                 }
             });
 
-            // ลบเป้าถ้าผู้เล่นเปลี่ยนไปใช้เมาส์อื่น (เช่นเปลี่ยนไปใช้ไม้บรรทัดวัดระยะ)
+            // เคลียร์เป้าเวลาเปลี่ยน Tool
             OBR.tool.onToolChange(async (activeToolId) => {
                 if (activeToolId !== TOOL_ID) {
                     await cleanupTarget();
@@ -122,7 +122,7 @@
                 return;
             }
             if (!targetTokenId) {
-                OBR.notification.show("ต้องคลิกที่ศัตรูเพื่อเล็งเป้าก่อนยิง!", "WARNING");
+                OBR.notification.show("ต้องคลิกที่เป้าหมายเพื่อเล็งเป้าก่อนยิง!", "WARNING");
                 return;
             }
             if (casterId === targetTokenId) {
@@ -134,7 +134,7 @@
             
             setTimeout(async () => {
                 await cleanupTarget();
-                OBR.tool.activateTool("owlbear.rodeo/core/default"); // ยิงเสร็จสลับเมาส์กลับให้
+                OBR.tool.activateTool("owlbear.rodeo/core/default"); 
             }, 800);
         }
 
