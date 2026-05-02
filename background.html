@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mugen Background</title>
+</head>
+<body>
+    <script type="module">
+        import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
+
+        OBR.onReady(() => {
+            OBR.contextMenu.create({
+                id: "mugen-set-caster",
+                icons: [
+                    {
+                        icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
+                        label: "Set as Mugen Caster",
+                        filter: {
+                            every: [{ key: "layer", value: "CHARACTER" }]
+                        }
+                    }
+                ],
+                onClick: (context) => {
+                    const casterId = context.items[0].id;
+                    // บันทึก ID ของคนร่าย (Token ที่โดนคลิกขวา) ฝังลงไปในห้อง
+                    OBR.room.setMetadata({ "mugen-ext/casterId": casterId });
+                    
+                    // ให้มีแจ้งเตือนเด้งขึ้นมาตรงกลางจอว่าเซ็ตสำเร็จแล้ว
+                    OBR.notification.show("ล็อกเป้าคนร่ายมุเก็นเรียบร้อย!", "SUCCESS");
+                }
+            });
+        });
+    </script>
+</body>
+</html>
