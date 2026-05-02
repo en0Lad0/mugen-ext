@@ -3,16 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <title>Mugen Loader</title>
+    <style>
+        body { background: #222; color: white; font-family: sans-serif; text-align: center; padding: 10px; margin: 0; }
+        button { width: 100%; padding: 15px; margin-top: 10px; cursor: pointer; color: white; background: #e91e63; border: none; font-weight: bold; border-radius: 5px; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);}
+        button:hover { background: #d81b60; }
+    </style>
 </head>
-<body style="background: #222; color: white; font-family: sans-serif; text-align: center; margin-top: 20px;">
-    <h4>กำลังเปิดโหมดมุเก็น...</h4>
+<body>
+    <h3 id="status" style="margin-top: 10px;">รอเปิดระบบ...</h3>
+    <p style="font-size: 12px; color: #aaa;">คลิกปุ่มด้านล่างเพื่อเปิด Toolbar ด้านบนสุด</p>
+    <button onclick="forceActivate()">🎯 เปิดโหมดมุเก็น (เล็งเป้า)</button>
+
     <script type="module">
         import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
 
+        window.forceActivate = async () => {
+            try {
+                // สั่งปลุก Tool ที่ฝังอยู่เบื้องหลังให้ตื่นขึ้นมา
+                await OBR.tool.activateTool("en0lad0.mugen/tool");
+                
+                document.getElementById('status').innerText = "✅ เปิดสำเร็จ! ดูแถบบนสุด";
+                document.getElementById('status').style.color = "#4caf50";
+                
+            } catch (e) {
+                document.getElementById('status').innerText = "❌ Error: " + e.message;
+                document.getElementById('status').style.color = "red";
+            }
+        };
+
         OBR.onReady(async () => {
-            // สั่งเปิด Tool เป้าเล็ง แล้วปิดหน้าต่างนี้ทิ้งทันที
-            await OBR.tool.activateTool("en0lad0.mugen/tool");
-            OBR.popover.close("mugen-popover");
+            // โหลดปุ๊บ สั่งเรียก Tool ปั๊บ
+            await window.forceActivate();
         });
     </script>
 </body>
