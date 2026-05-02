@@ -8,88 +8,183 @@
     <script type="module">
         import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
 
-        const targetMarkId = "mugen-target-mark";
-        const targetToolId = "en0lad0.mugen/target-tool";
-        const targetModeId = "en0lad0.mugen/target-mode";
+        const TOOL_ID = "en0lad0.mugen/tool";
+        const MODE_TARGET = "en0lad0.mugen/mode-target";
+        const TARGET_MARK_ID = "en0lad0.mugen/target-mark";
+        
+        let targetTokenId = null;
+
+        // รูปภาพไอคอนสำหรับปุ่มบน Toolbar (เป็น Data URI จะได้ไม่ต้องอัปโหลดรูปเพิ่ม)
+        const iconCrosshair = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3Cline x1='12' y1='2' x2='12' y2='6'/%3E%3Cline x1='12' y1='18' x2='12' y2='22'/%3E%3Cline x1='2' y1='12' x2='6' y2='12'/%3E%3Cline x1='18' y1='12' x2='22' y2='12'/%3E%3C/svg%3E";
+        const iconAka = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23d32f2f'/%3E%3C/svg%3E";
+        const iconAo = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%231976d2'/%3E%3C/svg%3E";
+        const iconMurasaki = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%237b1fa2'/%3E%3C/svg%3E";
+        const iconCancel = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' stroke='white' stroke-width='2'%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3Cline x1='6' y1='18' x2='18' y2='6'/%3E%3C/svg%3E";
+        // รูปเป้ากากบาทสีแดงสำหรับวางบนตัวศัตรู
+        const targetCrosshairImg = "data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='100' cy='100' r='85' stroke='%23e91e63' stroke-width='15' fill='none'/%3E%3Cline x1='100' y1='0' x2='100' y2='40' stroke='%23e91e63' stroke-width='15'/%3E%3Cline x1='100' y1='160' x2='100' y2='200' stroke='%23e91e63' stroke-width='15'/%3E%3Cline x1='0' y1='100' x2='40' y2='100' stroke='%23e91e63' stroke-width='15'/%3E%3Cline x1='160' y1='100' x2='200' y2='100' stroke='%23e91e63' stroke-width='15'/%3E%3C/svg%3E";
 
         OBR.onReady(() => {
-            // 1. ระบบเลือกคนร่าย (คลิกขวา)
+            // 1. ระบบ Set Caster (คลิกขวา)
             OBR.contextMenu.create({
                 id: "mugen-set-caster",
-                icons: [{
-                    icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
-                    label: "Set as Mugen Caster",
-                    filter: { every: [{ key: "layer", value: "CHARACTER" }] }
-                }],
+                icons: [{ icon: "https://en0lad0.github.io/mugen-ext/icon.svg", label: "Set as Mugen Caster", filter: { every: [{ key: "layer", value: "CHARACTER" }] } }],
                 onClick: (context) => {
                     const casterId = context.items[0].id;
                     OBR.room.setMetadata({ "en0lad0.mugen/caster": casterId });
-                    OBR.notification.show("ล็อกเป้าคนร่ายมุเก็นเรียบร้อย!", "SUCCESS");
+                    OBR.notification.show("ล็อกคนร่ายมุเก็นเรียบร้อย!", "SUCCESS");
                 }
             });
 
-            // 2. ลงทะเบียน Tool เล็งเป้าให้ฝังในระบบ Owlbear
+            // 2. สร้าง Tool เพื่อให้ Toolbar ด้านบนเด้งขึ้นมา
             OBR.tool.create({
-                id: targetToolId,
-                icons: [{
-                    icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
-                    label: "Mugen Targeting",
-                }],
+                id: TOOL_ID,
+                icons: [{ icon: "https://en0lad0.github.io/mugen-ext/icon.svg", label: "Mugen Targeting" }],
+                defaultMode: MODE_TARGET
             });
 
-            // 3. ระบบทำงานของ Tool ปากกา (ทำงานแม้ Popover จะถูกปิดไปแล้ว)
+            // 3. โหมดเป้าเล็ง (ดักจับการคลิก Token)
             OBR.tool.createMode({
-                id: targetModeId,
-                icons: [{
-                    icon: "https://en0lad0.github.io/mugen-ext/icon.svg",
-                    label: "Select Target",
-                    filter: { activeTools: [targetToolId] },
-                }],
+                id: MODE_TARGET,
+                icons: [{ icon: iconCrosshair, label: "Select Target", filter: { activeTools: [TOOL_ID] } }],
                 onToolClick: async (context, event) => {
                     const clickedId = event.target;
                     if (!clickedId) return;
 
                     const items = await OBR.scene.items.getItems([clickedId]);
-                    if (items.length === 0) return;
-                    const clickedItem = items[0];
-
-                    const metadata = await OBR.room.getMetadata();
-                    const casterId = metadata["en0lad0.mugen/caster"];
-
-                    if (clickedItem.layer === "CHARACTER" && clickedItem.id !== casterId) {
-                        // บันทึก ID ศัตรูลงในฐานข้อมูลกลางของห้อง
-                        OBR.room.setMetadata({ "en0lad0.mugen/target": clickedItem.id });
-                        
-                        await drawTargetMark(clickedItem.id);
-                        
-                        // ปลดเมาส์กลับเป็นปกติ
-                        OBR.tool.activateTool("owlbear.rodeo/core/default");
-                    } else if (clickedItem.id === casterId) {
-                        OBR.notification.show("ยิงใส่ตัวเองไม่ได้นะ!", "WARNING");
+                    if (items.length > 0 && items[0].layer === "CHARACTER") {
+                        targetTokenId = clickedId;
+                        await drawTargetMark(targetTokenId);
                     }
+                }
+            });
+
+            // 4. สร้างปุ่มสกิลต่างๆ บน Toolbar (จะโชว์ก็ต่อเมื่อ Tool ถูกเปิด)
+            OBR.tool.createAction({
+                id: "mugen-action-aka",
+                icons: [{ icon: iconAka, label: "Fire Aka (Red)", filter: { activeTools: [TOOL_ID] } }],
+                onClick: () => fireSkill("Aka.gif")
+            });
+
+            OBR.tool.createAction({
+                id: "mugen-action-ao",
+                icons: [{ icon: iconAo, label: "Fire Ao (Blue)", filter: { activeTools: [TOOL_ID] } }],
+                onClick: () => fireSkill("Ao.gif")
+            });
+
+            OBR.tool.createAction({
+                id: "mugen-action-murasaki",
+                icons: [{ icon: iconMurasaki, label: "Fire Murasaki (Purple)", filter: { activeTools: [TOOL_ID] } }],
+                onClick: () => fireSkill("Murazaki.gif")
+            });
+
+            OBR.tool.createAction({
+                id: "mugen-action-cancel",
+                icons: [{ icon: iconCancel, label: "Cancel", filter: { activeTools: [TOOL_ID] } }],
+                onClick: async () => {
+                    await cleanupTarget();
+                    OBR.tool.activateTool("owlbear.rodeo/core/default"); // กลับไปเป็นเมาส์ปกติ
+                }
+            });
+
+            // ตรวจจับว่าถ้าผู้เล่นเปลี่ยนไปใช้เครื่องมืออื่น (เช่น เลเซอร์) ให้ลบเป้าหมายทิ้ง
+            OBR.tool.onToolChange(async (activeToolId) => {
+                if (activeToolId !== TOOL_ID) {
+                    await cleanupTarget();
                 }
             });
         });
 
+        // ฟังก์ชันวาดเป้ากากบาท
         async function drawTargetMark(tId) {
-            await OBR.scene.items.deleteItems([targetMarkId]);
+            await cleanupTarget(); // ลบของเก่าออกก่อน
             const items = await OBR.scene.items.getItems([tId]);
             if (items.length === 0) return;
             const target = items[0];
             const markSize = target.image ? Math.max(target.image.width, target.image.height) * 1.5 : 300;
 
             const mark = {
-                id: targetMarkId,
-                type: "SHAPE",
-                shapeType: "CIRCLE",
+                id: TARGET_MARK_ID,
+                type: "IMAGE", // ใช้เป็น Image กากบาท
+                image: { url: targetCrosshairImg, width: 200, height: 200, mime: "image/svg+xml" },
                 width: markSize, height: markSize,
-                strokeColor: "#ff0000", strokeWidth: 10, fillOpacity: 0,
                 position: target.position,
                 attachedTo: tId, 
                 layer: "ATTACHMENT",
                 disableHit: true, locked: true, visible: true
             };
             await OBR.scene.items.addItems([mark]);
+        }
+
+        async function cleanupTarget() {
+            targetTokenId = null;
+            await OBR.scene.items.deleteItems([TARGET_MARK_ID]);
+        }
+
+        async function fireSkill(gifFileName) {
+            const metadata = await OBR.room.getMetadata();
+            const casterId = metadata["en0lad0.mugen/caster"];
+
+            if (!casterId) {
+                OBR.notification.show("กรุณาคลิกขวาที่ Token ตัวเองเพื่อ Set Caster ก่อน!", "ERROR");
+                return;
+            }
+            if (!targetTokenId) {
+                OBR.notification.show("กรุณาคลิกเล็งศัตรูบนกระดานก่อนยิง!", "WARNING");
+                return;
+            }
+            if (casterId === targetTokenId) {
+                OBR.notification.show("จะยิงใส่ตัวเองทำไมเล่า!", "ERROR");
+                return;
+            }
+
+            // เล่น Animation
+            await playAnimation(casterId, targetTokenId, gifFileName);
+            
+            // ยิงเสร็จ ให้ทำความสะอาด และปิด Tool
+            setTimeout(async () => {
+                await cleanupTarget();
+                OBR.tool.activateTool("owlbear.rodeo/core/default");
+            }, 800);
+        }
+
+        async function playAnimation(sourceId, targetId, gifFileName) {
+            const items = await OBR.scene.items.getItems([sourceId, targetId]);
+            const source = items.find(i => i.id === sourceId);
+            const target = items.find(i => i.id === targetId);
+
+            if(!source || !target) return;
+
+            const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
+            const fullImageUrl = new URL(gifFileName, "https://en0lad0.github.io/mugen-ext/").href;
+            
+            const projectile = {
+                id: projectileId,
+                type: "IMAGE",
+                image: { url: fullImageUrl, width: 150, height: 150, mime: "image/gif" },
+                position: source.position,
+                layer: "NOTE", 
+                disableHit: true, locked: true, visible: true
+            };
+
+            await OBR.scene.items.addItems([projectile]);
+
+            const frames = 20; 
+            let currentFrame = 0;
+            const dx = (target.position.x - source.position.x) / frames;
+            const dy = (target.position.y - source.position.y) / frames;
+
+            const animInterval = setInterval(async () => {
+                currentFrame++;
+                await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
+                    itemsToUpdate[0].position.x = source.position.x + (dx * currentFrame);
+                    itemsToUpdate[0].position.y = source.position.y + (dy * currentFrame);
+                });
+
+                if (currentFrame >= frames) {
+                    clearInterval(animInterval);
+                    setTimeout(() => { OBR.scene.items.deleteItems([projectileId]); }, 100);
+                }
+            }, 1000 / 30); 
         }
     </script>
 </body>
