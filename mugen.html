@@ -4,88 +4,128 @@
     <meta charset="UTF-8">
     <title>Mugen Skills</title>
     <style>
-        body { font-family: sans-serif; text-align: center; color: white; background: #222; margin: 0; padding: 10px; }
+        body { font-family: sans-serif; text-align: center; color: white; background: #222; margin: 0; padding: 10px; font-size: 14px;}
         .btn { width: 100%; padding: 10px; margin: 5px 0; cursor: pointer; color: white; border: none; font-weight: bold; border-radius: 5px; transition: 0.3s;}
-        .btn:disabled { opacity: 0.3; cursor: not-allowed; } /* สีเทาตอนปุ่มโดนล็อก */
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .aka { background: #d32f2f; }
         .ao { background: #1976d2; }
         .murasaki { background: #7b1fa2; }
-        #status { font-size: 14px; margin-bottom: 15px; color: #ffeb3b; }
+        .confirm { background: #4caf50; font-size: 16px; padding: 15px; border: 2px solid white; box-shadow: 0 0 10px #4caf50; animation: pulse 1.5s infinite; margin-top: 10px;}
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+        .status-box { background: #333; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: left; line-height: 1.5;}
+        .ready { color: #4caf50; font-weight: bold; }
+        .wait { color: #ff9800; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="status">กำลังตรวจสอบ...</div>
-    <button id="btn-aka" class="btn aka" onclick="selectSkill('Aka', 'Aka.gif')" disabled>Aka (Red)</button>
-    <button id="btn-ao" class="btn ao" onclick="selectSkill('Ao', 'Ao.gif')" disabled>Ao (Blue)</button>
-    <button id="btn-murasaki" class="btn murasaki" onclick="selectSkill('Murasaki', 'Murazaki.gif')" disabled>Murasaki (Purple)</button>
+    <div class="status-box">
+        <div>1. ผู้ร่าย: <span id="status-caster" class="wait">❌ รอคลิกขวาที่ Token ตัวเอง</span></div>
+        <div>2. เป้าหมาย: <span id="status-target" class="wait">❌ รอคลิกเลือก Token ศัตรู</span></div>
+    </div>
+
+    <!-- โซนเลือกสกิล จะถูกล็อกจนกว่าจะล็อกเป้าครบ -->
+    <div id="skill-section" style="opacity: 0.3; pointer-events: none;">
+        <button class="btn aka" onclick="prepareSkill('Aka', 'Aka.gif')">Aka (Red)</button>
+        <button class="btn ao" onclick="prepareSkill('Ao', 'Ao.gif')">Ao (Blue)</button>
+        <button class="btn murasaki" onclick="prepareSkill('Murasaki', 'Murazaki.gif')">Murasaki (Purple)</button>
+    </div>
+
+    <!-- โซนปุ่มยืนยัน จะซ่อนอยู่จนกว่าจะเลือกสกิล -->
+    <div id="confirm-section" style="display: none;">
+        <hr style="border-color: #444; margin: 15px 0;">
+        <p style="margin: 0 0 10px 0;">เตรียมยิง: <b id="selected-skill-text" style="color: yellow; font-size: 16px;"></b></p>
+        <button class="btn confirm" onclick="fireSkill()">🔥 กดยืนยันการยิง! 🔥</button>
+    </div>
 
     <script type="module">
         import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
 
         let casterId = null;
         let targetId = null;
+        let currentSkillName = null;
+        let currentGif = null;
 
-        // ฟังก์ชันคอยเช็คว่าพร้อมยิงหรือยัง
-        async function checkState() {
+        // ฟังก์ชันอัปเดตหน้าจอ UI
+        async function updateUI() {
             const metadata = await OBR.room.getMetadata();
-            casterId = metadata["mugen-ext/casterId"]; // ดึงข้อมูลคนร่ายที่เซ็ตไว้จากการคลิกขวา
+            casterId = metadata["mugen-ext/casterId"];
 
             const selection = await OBR.player.getSelection();
-            targetId = selection.length === 1 ? selection[0] : null; // ดูว่ากดคลิกศัตรูบนกระดานหรือยัง
+            targetId = selection.length === 1 ? selection[0] : null;
 
-            const statusEl = document.getElementById('status');
-            const btns = document.querySelectorAll('.btn');
+            const statusCaster = document.getElementById('status-caster');
+            const statusTarget = document.getElementById('status-target');
+            const skillSection = document.getElementById('skill-section');
 
-            if (!casterId) {
-                statusEl.innerText = "1. ต้องไปคลิกขวาที่ Token ตัวเองแล้วเลือก 'Set as Mugen Caster' ก่อน";
-                btns.forEach(btn => btn.disabled = true);
-            } else if (!targetId || targetId === casterId) {
-                statusEl.innerText = "2. คลิกเลือก Token ศัตรูบนกระดานเพื่อเล็งเป้าหมาย";
-                btns.forEach(btn => btn.disabled = true);
+            if (casterId) {
+                statusCaster.innerText = "✅ ล็อกเป้าผู้ร่ายแล้ว";
+                statusCaster.className = "ready";
             } else {
-                statusEl.innerText = "🎯 ล็อกเป้าหมายพร้อมยิง! เลือกสกิลเลย";
-                btns.forEach(btn => btn.disabled = false);
+                statusCaster.innerText = "❌ รอคลิกขวาที่ตัวเอง";
+                statusCaster.className = "wait";
+            }
+
+            if (targetId && targetId !== casterId) {
+                statusTarget.innerText = "✅ เล็งเป้าหมายแล้ว";
+                statusTarget.className = "ready";
+            } else {
+                statusTarget.innerText = "❌ รอคลิกศัตรูบนแมพ";
+                statusTarget.className = "wait";
+            }
+
+            // ถ้ามีครบทั้งคนยิงและคนโดนยิง ปลดล็อกปุ่มสกิล
+            if (casterId && targetId && targetId !== casterId) {
+                skillSection.style.opacity = "1";
+                skillSection.style.pointerEvents = "auto";
+            } else {
+                skillSection.style.opacity = "0.3";
+                skillSection.style.pointerEvents = "none";
+                document.getElementById('confirm-section').style.display = "none";
             }
         }
 
         OBR.onReady(async () => {
-            await checkState();
-
-            // ถ้ามีการเปลี่ยนการคลิกเป้าหมายบนกระดาน ให้เช็คสถานะใหม่ทันที
-            OBR.player.onChange(async () => {
-                await checkState();
-            });
-
-            // ถ้ามีการคลิกขวาเปลี่ยนคนร่าย ให้เช็คสถานะใหม่ทันที
-            OBR.room.onMetadataChange(async () => {
-                await checkState();
-            });
+            await updateUI();
+            // คอยดักจับว่ามีการคลิกเป้าหมายใหม่หรือเปลี่ยนคนร่ายหรือไม่
+            OBR.player.onChange(async () => await updateUI());
+            OBR.room.onMetadataChange(async () => await updateUI());
         });
 
-        window.selectSkill = async (skillName, gifFileName) => {
-            if (!casterId || !targetId) return;
+        // ฟังก์ชันเตรียมความพร้อมก่อนยิง
+        window.prepareSkill = (skillName, gifName) => {
+            currentSkillName = skillName;
+            currentGif = gifName;
+            document.getElementById('selected-skill-text').innerText = skillName;
+            document.getElementById('confirm-section').style.display = "block";
+        };
+
+        // ฟังก์ชันกดยิงจริง
+        window.fireSkill = async () => {
+            document.getElementById('confirm-section').style.display = "none";
+            document.getElementById('status-target').innerText = "💥 กำลังโจมตี!!";
             
-            document.getElementById('status').innerText = `💥 กำลังร่าย ${skillName}...`;
+            await playAnimation(casterId, targetId, currentGif);
             
-            // สั่งยิง Animation
-            await playAnimation(casterId, targetId, gifFileName);
-            
-            // ยิงเสร็จปิดหน้าต่างเมนูให้เอง
             setTimeout(() => {
-                // ล้างเป้าหมายที่เลือกไว้
+                // ยิงเสร็จให้ปลดการเลือกเป้าหมาย และปิดหน้าต่าง
                 OBR.player.deselect([targetId]);
                 OBR.popover.close("mugen-popover");
             }, 800);
         };
 
+        // ระบบ Animation
         async function playAnimation(sourceId, targetId, gifFileName) {
             const items = await OBR.scene.items.getItems([sourceId, targetId]);
             const source = items.find(i => i.id === sourceId);
             const target = items.find(i => i.id === targetId);
 
-            if(!source || !target) return;
+            if(!source || !target) {
+                OBR.notification.show("เกิดข้อผิดพลาด: หาเป้าหมายไม่เจอ", "ERROR");
+                return;
+            }
 
             const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
+            // ลิงก์ตรงไปที่ GitHub ของคุณ เพื่อแก้ปัญหาโหลดภาพไม่ขึ้น
             const fullImageUrl = new URL(gifFileName, "https://en0lad0.github.io/mugen-ext/").href;
             
             const projectile = {
@@ -98,7 +138,7 @@
                     mime: "image/gif"
                 },
                 position: source.position,
-                layer: "ATTACHMENT",
+                layer: "NOTE", // เปลี่ยนเป็นชั้น NOTE เพื่อให้อยู่บนสุดเสมอ
                 disableHit: true, 
                 locked: true,
                 visible: true
@@ -106,7 +146,7 @@
 
             await OBR.scene.items.addItems([projectile]);
 
-            const frames = 15; 
+            const frames = 20; // ปรับความสมูท
             let currentFrame = 0;
             const dx = (target.position.x - source.position.x) / frames;
             const dy = (target.position.y - source.position.y) / frames;
@@ -121,7 +161,7 @@
                 if (currentFrame >= frames) {
                     clearInterval(animInterval);
                     setTimeout(() => {
-                        OBR.scene.items.deleteItems([projectileId]);
+                        OBR.scene.items.deleteItems([projectileId]); // ลบเมื่อถึงเป้าหมาย
                     }, 100);
                 }
             }, 1000 / 30); 
