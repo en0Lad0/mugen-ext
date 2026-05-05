@@ -81,12 +81,11 @@
             
             // ยิงเสร็จ ให้เคลียร์เป้าหมายทิ้ง และปิดหน้าต่าง
             setTimeout(() => {
-                OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); // เคลียร์เป้า
+                OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); 
                 OBR.popover.close("mugen-popover");
             }, 800);
         };
 
-        // ระบบ Animation
         async function playAnimation(sourceId, targetId, gifFileName) {
             const items = await OBR.scene.items.getItems([sourceId, targetId]);
             const source = items.find(i => i.id === sourceId);
