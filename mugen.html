@@ -79,22 +79,20 @@
             document.getElementById('skill-section').style.pointerEvents = "none";
             
             try {
-                // ส่งคลื่นเสียง Broadcast ไปให้ Background.html เป็นคนวาดแอนิเมชัน
+                // ส่งคำสั่งยิงไปที่ Background แล้วปิดหน้าต่างทันที (แบบ Embers)
                 OBR.broadcast.sendMessage("en0lad0.mugen/anim", {
                     casterId: casterId,
                     targetId: targetId,
                     gifFileName: gifFileName
                 }, { destination: "ALL" });
 
-                // ล้างค่าเป้าหมายและปิดตัวเองทิ้งทันที
                 OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); 
                 setTimeout(() => {
                     OBR.popover.close("mugen-popover"); 
-                }, 500);
+                }, 300);
 
             } catch (err) {
                 OBR.notification.show("เกิดข้อผิดพลาดในการส่งคำสั่ง", "ERROR");
-                document.getElementById('status-target').innerText = "✅ ล็อกเป้าแล้ว!";
                 document.getElementById('skill-section').style.opacity = "1";
                 document.getElementById('skill-section').style.pointerEvents = "auto";
             }
