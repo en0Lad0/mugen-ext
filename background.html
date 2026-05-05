@@ -2,87 +2,165 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>Mugen Skills</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; color: white; background: #222; margin: 0; padding: 10px; font-size: 14px;}
+        .btn { width: 100%; padding: 12px; margin: 5px 0; cursor: pointer; color: white; border: none; font-weight: bold; border-radius: 5px; transition: 0.3s; font-size: 14px;}
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .aka { background: #d32f2f; }
+        .ao { background: #1976d2; }
+        .murasaki { background: #7b1fa2; }
+        .status-box { background: #333; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: left; line-height: 1.6;}
+        .ready { color: #4caf50; font-weight: bold; }
+        .wait { color: #ff9800; font-weight: bold; }
+    </style>
 </head>
 <body>
+    <div class="status-box">
+        <div>1. ผู้ร่าย: <span id="status-caster" class="wait">❌ รอคลิกขวา</span></div>
+        <div>2. เป้าหมาย: <span id="status-target" class="wait">❌ รอคลิกขวา</span></div>
+    </div>
+
+    <div id="skill-section" style="opacity: 0.3; pointer-events: none;">
+        <button class="btn aka" onclick="fireSkill('Aka.gif')">🔴 ยิง Aka (Red)</button>
+        <button class="btn ao" onclick="fireSkill('Ao.gif')">🔵 ยิง Ao (Blue)</button>
+        <button class="btn murasaki" onclick="fireSkill('Murazaki.gif')">🟣 ยิง Murasaki (Purple)</button>
+    </div>
+
     <script type="module">
-        import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
+        // Import buildImage เข้ามาใช้งาน
+        import OBR, { buildImage } from "https://esm.sh/@owlbear-rodeo/sdk";
 
-        const TARGET_MARK_ID = "en0lad0.mugen/target-mark";
-        const ICON_URL = "https://en0lad0.github.io/mugen-ext/icon.svg";
+        let casterId = null;
+        let targetId = null;
 
-        OBR.onReady(() => {
-            // 1. เมนูคลิกขวา: ตั้งค่า/ยกเลิก คนร่าย
-            OBR.contextMenu.create({
-                id: "en0lad0.mugen/set-caster",
-                icons: [{ icon: ICON_URL, label: "1. Set / Remove Caster", filter: { every: [{ key: "type", value: "IMAGE" }] } }],
-                onClick: async (context) => {
-                    const clickedId = context.items[0].id;
-                    const metadata = await OBR.room.getMetadata();
-                    
-                    // เช็กว่าคลิกซ้ำตัวเดิมไหม ถ้าใช่ให้ "ยกเลิก"
-                    if (metadata["en0lad0.mugen/caster"] === clickedId) {
-                        OBR.room.setMetadata({ "en0lad0.mugen/caster": undefined });
-                        OBR.notification.show("ยกเลิกผู้ร่ายแล้ว", "INFO");
-                    } else {
-                        OBR.room.setMetadata({ "en0lad0.mugen/caster": clickedId });
-                        OBR.notification.show("ล็อกคนร่ายมุเก็นเรียบร้อย!", "SUCCESS");
-                    }
-                }
-            });
+        async function updateUI() {
+            const metadata = await OBR.room.getMetadata();
+            casterId = metadata["en0lad0.mugen/caster"];
+            targetId = metadata["en0lad0.mugen/target"];
 
-            // 2. เมนูคลิกขวา: ล็อก/ยกเลิก เป้าศัตรู
-            OBR.contextMenu.create({
-                id: "en0lad0.mugen/lock-target",
-                icons: [{ icon: ICON_URL, label: "2. Lock / Unlock Target", filter: { every: [{ key: "type", value: "IMAGE" }] } }],
-                onClick: async (context) => {
-                    const clickedId = context.items[0].id;
-                    const metadata = await OBR.room.getMetadata();
-                    
-                    // เช็กว่าคลิกซ้ำศัตรูตัวเดิมไหม ถ้าใช่ให้ "ปลดล็อกเป้าหมาย"
-                    if (metadata["en0lad0.mugen/target"] === clickedId) {
-                        OBR.room.setMetadata({ "en0lad0.mugen/target": undefined });
-                        OBR.notification.show("ปลดล็อกเป้าหมายแล้ว", "INFO");
-                        return;
-                    }
+            const statusCaster = document.getElementById('status-caster');
+            if (casterId) {
+                statusCaster.innerText = "✅ พร้อมลุย!";
+                statusCaster.className = "ready";
+            } else {
+                statusCaster.innerText = "❌ รอคลิกขวา (1. Set Caster)";
+                statusCaster.className = "wait";
+            }
 
-                    if (metadata["en0lad0.mugen/caster"] === clickedId) {
-                        OBR.notification.show("ล็อกเป้าใส่ตัวเองไม่ได้นะ!", "ERROR");
-                        return;
-                    }
+            const statusTarget = document.getElementById('status-target');
+            if (targetId) {
+                statusTarget.innerText = "✅ ล็อกเป้าแล้ว!";
+                statusTarget.className = "ready";
+            } else {
+                statusTarget.innerText = "❌ รอคลิกขวา (2. Lock Target)";
+                statusTarget.className = "wait";
+            }
 
-                    OBR.room.setMetadata({ "en0lad0.mugen/target": clickedId });
-                    await drawTargetMark(clickedId);
-                    OBR.notification.show("ล็อกเป้าศัตรูแล้ว! เปิดเมนูกดยิงได้เลย", "INFO");
-                }
-            });
+            const skillSection = document.getElementById('skill-section');
+            if (casterId && targetId) {
+                skillSection.style.opacity = "1";
+                skillSection.style.pointerEvents = "auto";
+            } else {
+                skillSection.style.opacity = "0.3";
+                skillSection.style.pointerEvents = "none";
+            }
+        }
 
-            // 3. ระบบลบวงแหวนอัตโนมัติ (ถ้ามีการเคลียร์เป้าหมาย วงแหวนจะหายไปเอง)
-            OBR.room.onMetadataChange((metadata) => {
-                if (!metadata["en0lad0.mugen/target"]) {
-                    OBR.scene.items.deleteItems([TARGET_MARK_ID]);
-                }
-            });
+        OBR.onReady(async () => {
+            await updateUI();
+            OBR.room.onMetadataChange(async () => await updateUI());
         });
 
-        async function drawTargetMark(tId) {
-            await OBR.scene.items.deleteItems([TARGET_MARK_ID]); 
-            const items = await OBR.scene.items.getItems([tId]);
-            if (items.length === 0) return;
-            const target = items[0];
-            const markSize = target.image ? Math.max(target.image.width, target.image.height) * 1.5 : 300;
+        window.fireSkill = async (gifFileName) => {
+            if (!casterId || !targetId) return;
 
-            const mark = {
-                id: TARGET_MARK_ID,
-                type: "SHAPE",
-                shapeType: "CIRCLE",
-                width: markSize, height: markSize,
-                strokeColor: "#ff0000", strokeWidth: 15, fillOpacity: 0,
-                position: target.position,
-                attachedTo: tId, 
-                layer: "ATTACHMENT",
-                disableHit: true, locked: true, visible: true
-            };
-            await OBR.scene.items.addItems([mark]);
+            document.getElementById('status-target').innerText = "💥 กำลังโจมตี!!";
+            document.getElementById('skill-section').style.opacity = "0.3";
+            document.getElementById('skill-section').style.pointerEvents = "none";
+            
+            try {
+                // รอจนกว่าแอนิเมชันจะเสร็จสมบูรณ์
+                await playAnimation(casterId, targetId, gifFileName);
+                OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); // เคลียร์เป้าหมาย (วงแหวนจะหายไปเอง)
+            } catch (err) {
+                OBR.notification.show("Error: " + err.message, "ERROR");
+            }
+            
+            setTimeout(() => {
+                OBR.popover.close("mugen-popover"); 
+            }, 500);
+        };
+
+        function playAnimation(sourceId, targetId, gifFileName) {
+            return new Promise(async (resolve, reject) => {
+                const items = await OBR.scene.items.getItems([sourceId, targetId]);
+                const source = items.find(i => i.id === sourceId);
+                const target = items.find(i => i.id === targetId);
+
+                if(!source || !target) {
+                    reject(new Error("หา Token ไม่เจอ"));
+                    return;
+                }
+
+                const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
+                const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
+                
+                try {
+                    // ใช้คำสั่ง buildImage ของ OBR เพื่อสร้างโครงสร้างให้ถูกต้อง 100%
+                    const projectile = buildImage(
+                        { 
+                            url: fullImageUrl, 
+                            width: 250, 
+                            height: 250, 
+                            mime: "image/gif" 
+                        },
+                        { 
+                            dpi: 300, 
+                            offset: { x: 125, y: 125 } // ตั้งจุดหมุนให้อยู่กึ่งกลางรูป
+                        }
+                    )
+                    .id(projectileId)
+                    .position(source.position)
+                    .layer("ATTACHMENT") // ให้อยู่เลเยอร์บนสุด
+                    .disableHit(true)
+                    .locked(true)
+                    .build();
+
+                    // สั่งโผล่ลูกไฟลงกระดาน
+                    await OBR.scene.items.addItems([projectile]);
+                    OBR.notification.show("💥 ปล่อยพลัง!", "SUCCESS");
+                } catch (e) {
+                    reject(new Error("ไม่สามารถสร้างรูปแอนิเมชันได้"));
+                    return;
+                }
+
+                const frames = 20; 
+                let currentFrame = 0;
+                const dx = (target.position.x - source.position.x) / frames;
+                const dy = (target.position.y - source.position.y) / frames;
+
+                const animInterval = setInterval(async () => {
+                    currentFrame++;
+                    try {
+                        await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
+                            if (itemsToUpdate.length > 0) {
+                                itemsToUpdate[0].position.x = source.position.x + (dx * currentFrame);
+                                itemsToUpdate[0].position.y = source.position.y + (dy * currentFrame);
+                            }
+                        });
+                    } catch(e) {}
+
+                    // เมื่อชนเป้าหมาย
+                    if (currentFrame >= frames) {
+                        clearInterval(animInterval);
+                        setTimeout(async () => { 
+                            await OBR.scene.items.deleteItems([projectileId]); 
+                            resolve(); // ส่งสัญญาณว่ายิงจบแล้ว
+                        }, 200);
+                    }
+                }, 40); 
+            });
         }
     </script>
 </body>
