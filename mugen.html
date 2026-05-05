@@ -43,7 +43,7 @@
                 statusCaster.innerText = "✅ พร้อมลุย!";
                 statusCaster.className = "ready";
             } else {
-                statusCaster.innerText = "❌ รอคลิกขวา (1. Set Caster)";
+                statusCaster.innerText = "❌ รอคลิกขวา (Set Caster)";
                 statusCaster.className = "wait";
             }
 
@@ -52,7 +52,7 @@
                 statusTarget.innerText = "✅ ล็อกเป้าแล้ว!";
                 statusTarget.className = "ready";
             } else {
-                statusTarget.innerText = "❌ รอคลิกขวา (2. Lock Target)";
+                statusTarget.innerText = "❌ รอคลิกขวา (Lock Target)";
                 statusTarget.className = "wait";
             }
 
@@ -74,104 +74,26 @@
         window.fireSkill = async (gifFileName) => {
             if (!casterId || !targetId) return;
 
-            document.getElementById('status-target').innerText = "💥 กำลังโจมตี!!";
+            document.getElementById('status-target').innerText = "💥 ส่งคำสั่งโจมตี!!";
             document.getElementById('skill-section').style.opacity = "0.3";
             document.getElementById('skill-section').style.pointerEvents = "none";
             
             try {
-                await playAnimation(casterId, targetId, gifFileName);
-                
-                // ถ้ายิงสำเร็จ ถึงจะลบเป้าหมายแล้วปิดหน้าต่าง
+                // 1. ตะโกนบอกทุกคนในห้องว่ามีการร่ายสกิล (รวมถึงหน้าจอตัวเองด้วย)
+                OBR.broadcast.sendMessage("en0lad0.mugen/anim", {
+                    casterId: casterId,
+                    targetId: targetId,
+                    gifFileName: gifFileName
+                }, { destination: "ALL" });
+
+                // 2. เคลียร์เป้าหมายทิ้ง แล้วปิดหน้าต่างเลย! (ไม่ต้องรอแอนิเมชันจบแล้ว)
                 OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); 
-                setTimeout(() => {
-                    OBR.popover.close("mugen-popover"); 
-                }, 500);
+                OBR.popover.close("mugen-popover"); 
 
             } catch (err) {
-                // ถ้าบั๊ก ให้ดึงข้อความ Error มาโชว์ให้ชัดเจน และดีดปุ่มกลับให้กดใหม่ได้
-                let errMsg = err ? (err.message || String(err)) : "ไม่ทราบสาเหตุ";
-                OBR.notification.show("เกิดข้อผิดพลาด: " + errMsg, "ERROR");
-                
-                document.getElementById('status-target').innerText = "✅ ล็อกเป้าแล้ว!";
-                document.getElementById('skill-section').style.opacity = "1";
-                document.getElementById('skill-section').style.pointerEvents = "auto";
+                OBR.notification.show("เกิดข้อผิดพลาดในการส่งคำสั่ง", "ERROR");
             }
         };
-
-        function playAnimation(sourceId, targetId, gifFileName) {
-            return new Promise(async (resolve, reject) => {
-                const items = await OBR.scene.items.getItems([sourceId, targetId]);
-                const source = items.find(i => i.id === sourceId);
-                const target = items.find(i => i.id === targetId);
-
-                if(!source || !target) {
-                    reject(new Error("หา Token ต้นทางหรือเป้าหมายไม่เจอ"));
-                    return;
-                }
-
-                const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
-                const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
-                
-                try {
-                    // โครงสร้างแบบ Manual ที่สมบูรณ์ 100% เลี่ยงการใช้คำสั่งที่ระบบมองไม่เห็น
-                    const projectile = {
-                        id: projectileId,
-                        type: "IMAGE",
-                        name: "Mugen Skill",
-                        image: { 
-                            url: fullImageUrl, 
-                            width: 250, 
-                            height: 250, 
-                            mime: "image/gif" 
-                        },
-                        grid: { 
-                            dpi: 300, 
-                            offset: { x: 125, y: 125 } 
-                        },
-                        position: { x: source.position.x, y: source.position.y },
-                        scale: { x: 1, y: 1 },
-                        rotation: 0,
-                        layer: "PROP", // เปลี่ยนมาใช้เลเยอร์ PROP ปลอดภัยและครอบคลุมที่สุด
-                        disableHit: true, 
-                        locked: true, 
-                        visible: true,
-                        zIndex: 9999, // บังคับให้อยู่บนสุด
-                        metadata: {}
-                    };
-
-                    await OBR.scene.items.addItems([projectile]);
-                    
-                } catch (e) {
-                    reject(new Error("สร้างลูกไฟไม่สำเร็จ: " + (e.message || String(e))));
-                    return;
-                }
-
-                const frames = 20; 
-                let currentFrame = 0;
-                const dx = (target.position.x - source.position.x) / frames;
-                const dy = (target.position.y - source.position.y) / frames;
-
-                const animInterval = setInterval(async () => {
-                    currentFrame++;
-                    try {
-                        await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
-                            if (itemsToUpdate && itemsToUpdate.length > 0) {
-                                itemsToUpdate[0].position.x = source.position.x + (dx * currentFrame);
-                                itemsToUpdate[0].position.y = source.position.y + (dy * currentFrame);
-                            }
-                        });
-                    } catch(e) {}
-
-                    if (currentFrame >= frames) {
-                        clearInterval(animInterval);
-                        setTimeout(async () => { 
-                            await OBR.scene.items.deleteItems([projectileId]); 
-                            resolve(); 
-                        }, 200);
-                    }
-                }, 40); 
-            });
-        }
     </script>
 </body>
 </html>
