@@ -28,7 +28,8 @@
     </div>
 
     <script type="module">
-        import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
+        // สังเกตตรงนี้: เรา Import คำสั่ง buildImage มาใช้งานด้วย
+        import OBR, { buildImage } from "https://esm.sh/@owlbear-rodeo/sdk";
 
         let casterId = null;
         let targetId = null;
@@ -80,17 +81,23 @@
             
             try {
                 await playAnimation(casterId, targetId, gifFileName);
-                // ยิงเสร็จ ค่อยล้างเป้าหมาย
+                
+                // ถ้ายิงสำเร็จ ถึงจะลบเป้าหมายแล้วปิดหน้าต่าง
                 OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); 
+                setTimeout(() => {
+                    OBR.popover.close("mugen-popover"); 
+                }, 500);
+
             } catch (err) {
-                // ถ้ามีบั๊กอะไร ให้มันแจ้งเตือนขึ้นมาเลย จะได้รู้
-                OBR.notification.show("เกิดข้อผิดพลาด: " + err.message, "ERROR");
+                // ถ้าบั๊ก ให้ดึงข้อความ Error มาโชว์ให้ชัดเจน
+                let errMsg = err ? (err.message || JSON.stringify(err)) : "ไม่ทราบสาเหตุ";
+                OBR.notification.show("เกิดข้อผิดพลาด: " + errMsg, "ERROR");
+                
+                // ปลดล็อกปุ่มให้กดยิงใหม่ได้ ไม่ต้องค้าง
+                document.getElementById('status-target').innerText = "✅ ล็อกเป้าแล้ว!";
+                document.getElementById('skill-section').style.opacity = "1";
+                document.getElementById('skill-section').style.pointerEvents = "auto";
             }
-            
-            // รอแป๊บเดียวแล้วปิดหน้าต่าง เพื่อให้มั่นใจว่าข้อมูลล้างเสร็จแล้ว
-            setTimeout(() => {
-                OBR.popover.close("mugen-popover"); 
-            }, 500);
         };
 
         function playAnimation(sourceId, targetId, gifFileName) {
@@ -105,35 +112,33 @@
                 }
 
                 const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
-                
-                // จุดสังเกต: ถ้าโฟลเดอร์ใน GitHub ของคุณไม่ได้ชื่อ mugen-ext รบกวนแก้ตรงนี้ให้ตรงด้วยนะครับ!
                 const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
                 
                 try {
-                    // โครงสร้างรูปภาพที่ถูกต้อง 100% สำหรับ Owlbear
-                    const projectile = {
-                        id: projectileId,
-                        type: "IMAGE",
-                        name: "Mugen Skill",
-                        image: { 
+                    // ใช้ buildImage เพื่อให้ Owlbear เติมข้อมูลที่ขาดให้ครบ 100%
+                    const projectile = buildImage(
+                        { 
                             url: fullImageUrl, 
                             width: 250, 
                             height: 250, 
                             mime: "image/gif" 
                         },
-                        position: { x: source.position.x, y: source.position.y },
-                        scale: { x: 1, y: 1 },
-                        grid: { dpi: 300, offset: { x: 125, y: 125 } },
-                        layer: "NOTE", // เปลี่ยนมาใช้ NOTE เพื่อหลีกเลี่ยงบั๊ก Attachment
-                        disableHit: true, 
-                        locked: false, 
-                        visible: true
-                    };
+                        { 
+                            dpi: 300, 
+                            offset: { x: 125, y: 125 } 
+                        }
+                    )
+                    .id(projectileId)
+                    .position(source.position)
+                    .layer("NOTE") 
+                    .disableHit(true)
+                    .locked(true)
+                    .build();
 
                     await OBR.scene.items.addItems([projectile]);
                     
                 } catch (e) {
-                    reject(new Error("พังตอนสร้างรูปภาพ: " + e.message));
+                    reject(e);
                     return;
                 }
 
@@ -153,12 +158,11 @@
                         });
                     } catch(e) {}
 
-                    // เมื่อถึงเป้าหมาย
                     if (currentFrame >= frames) {
                         clearInterval(animInterval);
                         setTimeout(async () => { 
                             await OBR.scene.items.deleteItems([projectileId]); 
-                            resolve(); // แจ้งว่าการยิงสมบูรณ์แล้ว
+                            resolve(); 
                         }, 200);
                     }
                 }, 40); 
