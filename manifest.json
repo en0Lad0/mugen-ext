@@ -1,6 +1,6 @@
 {
   "name": "Mugen Skills",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "manifest_version": 1,
   "author": "DM",
   "background_url": "https://en0lad0.github.io/mugen-ext/background.html",
@@ -9,6 +9,6 @@
     "icon": "https://en0lad0.github.io/mugen-ext/icon.svg",
     "popover": "https://en0lad0.github.io/mugen-ext/mugen.html",
     "width": 250,
-    "height": 180
+    "height": 260
   }
 }
