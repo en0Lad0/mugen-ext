@@ -11,45 +11,52 @@
         const ICON_URL = "https://en0lad0.github.io/mugen-ext/icon.svg";
 
         OBR.onReady(() => {
-            // 1. เมนูคลิกขวา: ตั้งค่าคนร่าย (กรองให้โชว์กับ "รูปภาพ" ทุกชนิดบนกระดาน)
+            // 1. เมนูคลิกขวา: ตั้งค่า/ยกเลิก คนร่าย
             OBR.contextMenu.create({
-                id: "mugen-set-caster",
-                icons: [{ 
-                    icon: ICON_URL, 
-                    label: "1. Set as Mugen Caster",
-                    filter: { every: [{ key: "type", value: "IMAGE" }] }
-                }],
-                onClick: (context) => {
-                    const casterId = context.items[0].id;
-                    OBR.room.setMetadata({ "en0lad0.mugen/caster": casterId });
-                    OBR.notification.show("ล็อกคนร่ายมุเก็นเรียบร้อย!", "SUCCESS");
+                id: "en0lad0.mugen/set-caster",
+                icons: [{ icon: ICON_URL, label: "1. Set / Remove Caster", filter: { every: [{ key: "type", value: "IMAGE" }] } }],
+                onClick: async (context) => {
+                    const clickedId = context.items[0].id;
+                    const metadata = await OBR.room.getMetadata();
+                    
+                    // เช็กว่าคลิกซ้ำตัวเดิมไหม ถ้าใช่ให้ "ยกเลิก"
+                    if (metadata["en0lad0.mugen/caster"] === clickedId) {
+                        OBR.room.setMetadata({ "en0lad0.mugen/caster": undefined });
+                        OBR.notification.show("ยกเลิกผู้ร่ายแล้ว", "INFO");
+                    } else {
+                        OBR.room.setMetadata({ "en0lad0.mugen/caster": clickedId });
+                        OBR.notification.show("ล็อกคนร่ายมุเก็นเรียบร้อย!", "SUCCESS");
+                    }
                 }
             });
 
-            // 2. เมนูคลิกขวา: ล็อกเป้าศัตรู (กรองให้โชว์กับ "รูปภาพ" ทุกชนิดเช่นกัน)
+            // 2. เมนูคลิกขวา: ล็อก/ยกเลิก เป้าศัตรู
             OBR.contextMenu.create({
-                id: "mugen-lock-target",
-                icons: [{ 
-                    icon: ICON_URL, 
-                    label: "2. Lock Target (Mugen)",
-                    filter: { every: [{ key: "type", value: "IMAGE" }] }
-                }],
+                id: "en0lad0.mugen/lock-target",
+                icons: [{ icon: ICON_URL, label: "2. Lock / Unlock Target", filter: { every: [{ key: "type", value: "IMAGE" }] } }],
                 onClick: async (context) => {
-                    const targetId = context.items[0].id;
-                    
+                    const clickedId = context.items[0].id;
                     const metadata = await OBR.room.getMetadata();
-                    if (metadata["en0lad0.mugen/caster"] === targetId) {
+                    
+                    // เช็กว่าคลิกซ้ำศัตรูตัวเดิมไหม ถ้าใช่ให้ "ปลดล็อกเป้าหมาย"
+                    if (metadata["en0lad0.mugen/target"] === clickedId) {
+                        OBR.room.setMetadata({ "en0lad0.mugen/target": undefined });
+                        OBR.notification.show("ปลดล็อกเป้าหมายแล้ว", "INFO");
+                        return;
+                    }
+
+                    if (metadata["en0lad0.mugen/caster"] === clickedId) {
                         OBR.notification.show("ล็อกเป้าใส่ตัวเองไม่ได้นะ!", "ERROR");
                         return;
                     }
 
-                    OBR.room.setMetadata({ "en0lad0.mugen/target": targetId });
-                    await drawTargetMark(targetId);
-                    OBR.notification.show("ล็อกเป้าศัตรูแล้ว! เปิดเมนู Mugen เพื่อกดยิงได้เลย", "INFO");
+                    OBR.room.setMetadata({ "en0lad0.mugen/target": clickedId });
+                    await drawTargetMark(clickedId);
+                    OBR.notification.show("ล็อกเป้าศัตรูแล้ว! เปิดเมนูกดยิงได้เลย", "INFO");
                 }
             });
 
-            // 3. ระบบลบวงแหวนอัตโนมัติ
+            // 3. ระบบลบวงแหวนอัตโนมัติ (ถ้ามีการเคลียร์เป้าหมาย วงแหวนจะหายไปเอง)
             OBR.room.onMetadataChange((metadata) => {
                 if (!metadata["en0lad0.mugen/target"]) {
                     OBR.scene.items.deleteItems([TARGET_MARK_ID]);
@@ -62,8 +69,6 @@
             const items = await OBR.scene.items.getItems([tId]);
             if (items.length === 0) return;
             const target = items[0];
-            
-            // ดึงขนาดของ Token เพื่อวาดวงแหวนให้พอดี
             const markSize = target.image ? Math.max(target.image.width, target.image.height) * 1.5 : 300;
 
             const mark = {
