@@ -79,19 +79,19 @@
             document.getElementById('skill-section').style.pointerEvents = "none";
             
             try {
-                // 1. ตะโกนบอกทุกคนในห้องว่ามีการร่ายสกิล (รวมถึงหน้าจอตัวเองด้วย)
+                // ตะโกนบอก Broadcast แบบ Embers
                 OBR.broadcast.sendMessage("en0lad0.mugen/anim", {
                     casterId: casterId,
                     targetId: targetId,
                     gifFileName: gifFileName
                 }, { destination: "ALL" });
 
-                // 2. เคลียร์เป้าหมายทิ้ง แล้วปิดหน้าต่างเลย! (ไม่ต้องรอแอนิเมชันจบแล้ว)
+                // ล้างเป้าหมาย แล้วปิดหน้าต่างทันที ไม่ต้องรอลูกไฟ
                 OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); 
                 OBR.popover.close("mugen-popover"); 
 
             } catch (err) {
-                OBR.notification.show("เกิดข้อผิดพลาดในการส่งคำสั่ง", "ERROR");
+                OBR.notification.show("ส่งคำสั่งไม่สำเร็จ", "ERROR");
             }
         };
     </script>
