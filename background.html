@@ -11,7 +11,7 @@
         const ICON_URL = "https://en0lad0.github.io/mugen-ext/icon.svg";
 
         OBR.onReady(() => {
-            // ระบบคลิกขวา Set Caster
+            // ระบบคลิกขวา
             OBR.contextMenu.create({
                 id: "en0lad0.mugen/set-caster",
                 icons: [{ icon: ICON_URL, label: "1. Set / Remove Caster", filter: { every: [{ key: "type", value: "IMAGE" }] } }],
@@ -28,7 +28,6 @@
                 }
             });
 
-            // ระบบคลิกขวา Lock Target
             OBR.contextMenu.create({
                 id: "en0lad0.mugen/lock-target",
                 icons: [{ icon: ICON_URL, label: "2. Lock / Unlock Target", filter: { every: [{ key: "type", value: "IMAGE" }] } }],
@@ -49,14 +48,13 @@
                 }
             });
 
-            // ระบบลบวงแหวนอัตโนมัติ
             OBR.room.onMetadataChange((metadata) => {
                 if (!metadata["en0lad0.mugen/target"]) {
                     OBR.scene.items.deleteItems([TARGET_MARK_ID]);
                 }
             });
 
-            // ⭐ ไฮไลต์เด็ดแบบ Embers: รอรับคำสั่งยิงจาก Broadcast
+            // รอรับคำสั่ง Broadcast จากแผงควบคุม
             OBR.broadcast.onMessage("en0lad0.mugen/anim", async (event) => {
                 const data = event.data;
                 await playLocalAnimation(data.casterId, data.targetId, data.gifFileName);
@@ -84,7 +82,7 @@
             await OBR.scene.items.addItems([mark]);
         }
 
-        // ⭐ ฟังก์ชันสร้างภาพลวงตา ไม่ส่งผลกระทบต่อ Server แน่นอน 100%
+        // สร้างภาพลวงตา Local เฉพาะบนหน้าจอ
         async function playLocalAnimation(sourceId, targetId, gifFileName) {
             const items = await OBR.scene.items.getItems([sourceId, targetId]);
             const source = items.find(i => i.id === sourceId);
@@ -95,24 +93,23 @@
             const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
             const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
             
-            const projectile = {
-                id: projectileId,
-                type: "IMAGE",
-                name: "Mugen Skill",
-                image: { url: fullImageUrl, width: 250, height: 250, mime: "image/gif" },
-                grid: { dpi: 300, offset: { x: 125, y: 125 } },
-                position: { x: source.position.x, y: source.position.y },
-                scale: { x: 1, y: 1 },
-                rotation: 0,
-                layer: "NOTE", 
-                disableHit: true, 
-                locked: true, 
-                visible: true,
-                zIndex: 9999,
-                metadata: {}
-            };
+            // ⭐ เคล็ดลับวิชา: ก๊อปปี้ Token ตัวละครมาทั้งดุ้น เพื่อให้มีข้อมูลครบถ้วน 100% หลบการตรวจสอบ
+            const projectile = JSON.parse(JSON.stringify(source));
+            
+            // แอบเปลี่ยนแค่รูปภาพกับตั้งค่าให้เป็นของลอยฟ้า
+            projectile.id = projectileId;
+            projectile.name = "Mugen Skill";
+            projectile.image = { url: fullImageUrl, width: 250, height: 250, mime: "image/gif" };
+            projectile.grid = { dpi: 300, offset: { x: 125, y: 125 } };
+            projectile.scale = { x: 1, y: 1 };
+            projectile.rotation = 0;
+            projectile.layer = "NOTE"; 
+            projectile.disableHit = true; 
+            projectile.locked = true; 
+            projectile.visible = true;
+            projectile.attachedTo = undefined; // ปลดล็อกการยึดติด
 
-            // ใช้ .local.addItems แทน .items.addItems (หลอกตาระบบ)
+            // ใช้ระบบ Local Items แบบ Embers (เร็ว ไม่โหลดเซิร์ฟเวอร์)
             await OBR.scene.local.addItems([projectile]);
 
             const frames = 20; 
@@ -123,7 +120,6 @@
             const animInterval = setInterval(async () => {
                 currentFrame++;
                 try {
-                    // ใช้ .local.updateItems วิ่งเนียนๆ ในจอคอมเราเอง
                     await OBR.scene.local.updateItems([projectileId], (itemsToUpdate) => {
                         if (itemsToUpdate && itemsToUpdate.length > 0) {
                             itemsToUpdate[0].position.x = source.position.x + (dx * currentFrame);
@@ -135,11 +131,10 @@
                 if (currentFrame >= frames) {
                     clearInterval(animInterval);
                     setTimeout(async () => { 
-                        // ยิงเสร็จก็ลบของปลอมทิ้ง
                         await OBR.scene.local.deleteItems([projectileId]); 
                     }, 200);
                 }
-            }, 30); // วิ่งไวขึ้น เนียนตาขึ้น
+            }, 30); 
         }
     </script>
 </body>
