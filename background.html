@@ -11,13 +11,12 @@
         const ICON_URL = "https://en0lad0.github.io/mugen-ext/icon.svg";
 
         OBR.onReady(() => {
-            // 1. เมนูคลิกขวา: ตั้งค่าคนร่าย (โชว์เมื่อคลิกตัวละคร/สิ่งของ/สัตว์ขี่)
+            // 1. เมนูคลิกขวา: ตั้งค่าคนร่าย (เอา Filter ออก ให้โชว์เสมอ)
             OBR.contextMenu.create({
-                id: "mugen-set-caster",
+                id: "en0lad0.mugen/set-caster",
                 icons: [{ 
                     icon: ICON_URL, 
-                    label: "1. Set as Mugen Caster",
-                    filter: { some: [{ key: "layer", value: "CHARACTER" }, { key: "layer", value: "PROP" }, { key: "layer", value: "MOUNT" }] }
+                    label: "1. Set as Mugen Caster" 
                 }],
                 onClick: (context) => {
                     const casterId = context.items[0].id;
@@ -26,13 +25,12 @@
                 }
             });
 
-            // 2. เมนูคลิกขวา: ล็อกเป้าศัตรู (แก้บั๊กโดยการเติม Filter ให้มันโชว์แล้ว!)
+            // 2. เมนูคลิกขวา: ล็อกเป้าศัตรู (เอา Filter ออก ให้โชว์เสมอ)
             OBR.contextMenu.create({
-                id: "mugen-lock-target",
+                id: "en0lad0.mugen/lock-target",
                 icons: [{ 
                     icon: ICON_URL, 
-                    label: "2. Lock Target (Mugen)",
-                    filter: { some: [{ key: "layer", value: "CHARACTER" }, { key: "layer", value: "PROP" }, { key: "layer", value: "MOUNT" }] }
+                    label: "2. Lock Target (Mugen)" 
                 }],
                 onClick: async (context) => {
                     const targetId = context.items[0].id;
