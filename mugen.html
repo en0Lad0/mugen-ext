@@ -2,39 +2,130 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Mugen Loader</title>
+    <title>Mugen Skills</title>
     <style>
-        body { background: #222; color: white; font-family: sans-serif; text-align: center; padding: 10px; margin: 0; }
-        button { width: 100%; padding: 15px; margin-top: 10px; cursor: pointer; color: white; background: #e91e63; border: none; font-weight: bold; border-radius: 5px; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);}
-        button:hover { background: #d81b60; }
+        body { font-family: sans-serif; text-align: center; color: white; background: #222; margin: 0; padding: 10px; font-size: 14px;}
+        .btn { width: 100%; padding: 12px; margin: 5px 0; cursor: pointer; color: white; border: none; font-weight: bold; border-radius: 5px; transition: 0.3s; font-size: 14px;}
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .aka { background: #d32f2f; }
+        .ao { background: #1976d2; }
+        .murasaki { background: #7b1fa2; }
+        .status-box { background: #333; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: left; line-height: 1.6;}
+        .ready { color: #4caf50; font-weight: bold; }
+        .wait { color: #ff9800; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h3 id="status" style="margin-top: 10px;">รอเปิดระบบ...</h3>
-    <p style="font-size: 12px; color: #aaa;">คลิกปุ่มด้านล่างเพื่อเปิด Toolbar ด้านบนสุด</p>
-    <button onclick="forceActivate()">🎯 เปิดโหมดมุเก็น (เล็งเป้า)</button>
+    <div class="status-box">
+        <div>1. ผู้ร่าย: <span id="status-caster" class="wait">❌ รอคลิกขวา Set Caster</span></div>
+        <div>2. เป้าหมาย: <span id="status-target" class="wait">❌ รอคลิกขวา Lock Target</span></div>
+    </div>
+
+    <!-- โซนเลือกสกิล จะถูกล็อกจนกว่าจะคลิกขวาเลือกครบ 2 อย่าง -->
+    <div id="skill-section" style="opacity: 0.3; pointer-events: none;">
+        <button class="btn aka" onclick="fireSkill('Aka.gif')">🔴 ยิง Aka (Red)</button>
+        <button class="btn ao" onclick="fireSkill('Ao.gif')">🔵 ยิง Ao (Blue)</button>
+        <button class="btn murasaki" onclick="fireSkill('Murazaki.gif')">🟣 ยิง Murasaki (Purple)</button>
+    </div>
 
     <script type="module">
         import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
 
-        window.forceActivate = async () => {
-            try {
-                // สั่งปลุก Tool ที่ฝังอยู่เบื้องหลังให้ตื่นขึ้นมา
-                await OBR.tool.activateTool("en0lad0.mugen/tool");
-                
-                document.getElementById('status').innerText = "✅ เปิดสำเร็จ! ดูแถบบนสุด";
-                document.getElementById('status').style.color = "#4caf50";
-                
-            } catch (e) {
-                document.getElementById('status').innerText = "❌ Error: " + e.message;
-                document.getElementById('status').style.color = "red";
+        let casterId = null;
+        let targetId = null;
+
+        async function updateUI() {
+            const metadata = await OBR.room.getMetadata();
+            casterId = metadata["en0lad0.mugen/caster"];
+            targetId = metadata["en0lad0.mugen/target"];
+
+            const statusCaster = document.getElementById('status-caster');
+            if (casterId) {
+                statusCaster.innerText = "✅ พร้อมลุย!";
+                statusCaster.className = "ready";
+            } else {
+                statusCaster.innerText = "❌ รอคลิกขวา Set Caster";
+                statusCaster.className = "wait";
             }
-        };
+
+            const statusTarget = document.getElementById('status-target');
+            if (targetId) {
+                statusTarget.innerText = "✅ ล็อกเป้าแล้ว!";
+                statusTarget.className = "ready";
+            } else {
+                statusTarget.innerText = "❌ รอคลิกขวา Lock Target";
+                statusTarget.className = "wait";
+            }
+
+            const skillSection = document.getElementById('skill-section');
+            if (casterId && targetId) {
+                skillSection.style.opacity = "1";
+                skillSection.style.pointerEvents = "auto";
+            } else {
+                skillSection.style.opacity = "0.3";
+                skillSection.style.pointerEvents = "none";
+            }
+        }
 
         OBR.onReady(async () => {
-            // โหลดปุ๊บ สั่งเรียก Tool ปั๊บ
-            await window.forceActivate();
+            await updateUI();
+            OBR.room.onMetadataChange(async () => await updateUI());
         });
+
+        window.fireSkill = async (gifFileName) => {
+            if (!casterId || !targetId) return;
+
+            document.getElementById('status-target').innerText = "💥 กำลังโจมตี!!";
+            
+            await playAnimation(casterId, targetId, gifFileName);
+            
+            // ยิงเสร็จ ให้เคลียร์เป้าหมายทิ้ง และปิดหน้าต่าง
+            setTimeout(() => {
+                OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); // เคลียร์เป้า
+                OBR.popover.close("mugen-popover");
+            }, 800);
+        };
+
+        // ระบบ Animation
+        async function playAnimation(sourceId, targetId, gifFileName) {
+            const items = await OBR.scene.items.getItems([sourceId, targetId]);
+            const source = items.find(i => i.id === sourceId);
+            const target = items.find(i => i.id === targetId);
+
+            if(!source || !target) return;
+
+            const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
+            const fullImageUrl = new URL(gifFileName, "https://en0lad0.github.io/mugen-ext/").href;
+            
+            const projectile = {
+                id: projectileId,
+                type: "IMAGE",
+                image: { url: fullImageUrl, width: 150, height: 150, mime: "image/gif" },
+                position: source.position,
+                layer: "NOTE", 
+                disableHit: true, locked: true, visible: true
+            };
+
+            await OBR.scene.items.addItems([projectile]);
+
+            const frames = 20; 
+            let currentFrame = 0;
+            const dx = (target.position.x - source.position.x) / frames;
+            const dy = (target.position.y - source.position.y) / frames;
+
+            const animInterval = setInterval(async () => {
+                currentFrame++;
+                await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
+                    itemsToUpdate[0].position.x = source.position.x + (dx * currentFrame);
+                    itemsToUpdate[0].position.y = source.position.y + (dy * currentFrame);
+                });
+
+                if (currentFrame >= frames) {
+                    clearInterval(animInterval);
+                    setTimeout(() => { OBR.scene.items.deleteItems([projectileId]); }, 100);
+                }
+            }, 1000 / 30); 
+        }
     </script>
 </body>
 </html>
