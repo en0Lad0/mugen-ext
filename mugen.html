@@ -43,7 +43,7 @@
                 statusCaster.innerText = "✅ พร้อมลุย!";
                 statusCaster.className = "ready";
             } else {
-                statusCaster.innerText = "❌ รอคลิกขวา (Set Caster)";
+                statusCaster.innerText = "❌ รอคลิกขวา (1. Set Caster)";
                 statusCaster.className = "wait";
             }
 
@@ -52,7 +52,7 @@
                 statusTarget.innerText = "✅ ล็อกเป้าแล้ว!";
                 statusTarget.className = "ready";
             } else {
-                statusTarget.innerText = "❌ รอคลิกขวา (Lock Target)";
+                statusTarget.innerText = "❌ รอคลิกขวา (2. Lock Target)";
                 statusTarget.className = "wait";
             }
 
@@ -74,26 +74,137 @@
         window.fireSkill = async (gifFileName) => {
             if (!casterId || !targetId) return;
 
-            document.getElementById('status-target').innerText = "💥 ส่งคำสั่งโจมตี!!";
+            document.getElementById('status-target').innerText = "🌀 กำลังรวบรวมพลัง!!";
             document.getElementById('skill-section').style.opacity = "0.3";
             document.getElementById('skill-section').style.pointerEvents = "none";
             
             try {
-                // ตะโกนบอก Broadcast แบบ Embers
-                OBR.broadcast.sendMessage("en0lad0.mugen/anim", {
-                    casterId: casterId,
-                    targetId: targetId,
-                    gifFileName: gifFileName
-                }, { destination: "ALL" });
-
-                // ล้างเป้าหมาย แล้วปิดหน้าต่างทันที ไม่ต้องรอลูกไฟ
+                await playAnimation(casterId, targetId, gifFileName);
+                
                 OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); 
-                OBR.popover.close("mugen-popover"); 
+                setTimeout(() => {
+                    OBR.popover.close("mugen-popover"); 
+                }, 500);
 
             } catch (err) {
-                OBR.notification.show("ส่งคำสั่งไม่สำเร็จ", "ERROR");
+                let errMsg = err ? (err.message || String(err)) : "ไม่ทราบสาเหตุ";
+                OBR.notification.show("เกิดข้อผิดพลาด: " + errMsg, "ERROR");
+                
+                document.getElementById('status-target').innerText = "✅ ล็อกเป้าแล้ว!";
+                document.getElementById('skill-section').style.opacity = "1";
+                document.getElementById('skill-section').style.pointerEvents = "auto";
             }
         };
+
+        function playAnimation(sourceId, targetId, gifFileName) {
+            return new Promise(async (resolve, reject) => {
+                const items = await OBR.scene.items.getItems([sourceId, targetId]);
+                const source = items.find(i => i.id === sourceId);
+                const target = items.find(i => i.id === targetId);
+
+                if(!source || !target) {
+                    reject(new Error("หา Token ต้นทางหรือเป้าหมายไม่เจอ"));
+                    return;
+                }
+
+                // 1. คำนวณหา "จุดเกิด" ให้อยู่ข้างหน้าคนร่าย (หันไปทางเป้าหมาย)
+                const dxTotal = target.position.x - source.position.x;
+                const dyTotal = target.position.y - source.position.y;
+                const distance = Math.sqrt(dxTotal * dxTotal + dyTotal * dyTotal);
+                
+                // เลื่อนจุดเกิดออกมาข้างหน้า 120 pixels (พ้นระยะขอบตัวละครพอดี)
+                const offsetX = distance > 0 ? (dxTotal / distance) * 120 : 0;
+                const offsetY = distance > 0 ? (dyTotal / distance) * 120 : 0;
+
+                const spawnX = source.position.x + offsetX;
+                const spawnY = source.position.y + offsetY;
+
+                const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
+                const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
+                
+                try {
+                    const projectile = {
+                        id: projectileId,
+                        type: "IMAGE",
+                        name: "Mugen Skill",
+                        image: { url: fullImageUrl, width: 250, height: 250, mime: "image/gif" },
+                        grid: { dpi: 300, offset: { x: 125, y: 125 } },
+                        position: { x: spawnX, y: spawnY },
+                        scale: { x: 0.1, y: 0.1 }, // เริ่มจากขนาด 0.1 (จิ๋วมาก)
+                        rotation: 0,
+                        layer: "PROP", 
+                        disableHit: true, 
+                        locked: true, 
+                        visible: true,
+                        zIndex: 9999,
+                        metadata: {}
+                    };
+
+                    await OBR.scene.items.addItems([projectile]);
+                } catch (e) {
+                    reject(new Error("สร้างลูกไฟไม่สำเร็จ: " + String(e)));
+                    return;
+                }
+
+                // ==========================================
+                // เฟส 1: รวบรวมพลัง (ชาร์จ 2 วินาที)
+                // ==========================================
+                const chargeTime = 2000; // 2000 ms = 2 วินาที
+                const chargeIntervalTime = 50; // อัปเดตทุก 50ms
+                const chargeFrames = chargeTime / chargeIntervalTime; // ทั้งหมด 40 เฟรม
+                let currentCharge = 0;
+
+                const chargeInterval = setInterval(async () => {
+                    currentCharge++;
+                    // คำนวณให้ขนาดขยายจาก 0.1 -> 1.0 ตามเปอร์เซ็นต์เวลาที่ผ่านไป
+                    const scaleValue = 0.1 + (0.9 * (currentCharge / chargeFrames));
+
+                    try {
+                        await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
+                            if (itemsToUpdate && itemsToUpdate.length > 0) {
+                                itemsToUpdate[0].scale = { x: scaleValue, y: scaleValue };
+                            }
+                        });
+                    } catch(e) {}
+
+                    // เมื่อชาร์จครบ 2 วินาที ให้หยุดชาร์จแล้วเริ่มยิง!
+                    if (currentCharge >= chargeFrames) {
+                        clearInterval(chargeInterval);
+                        document.getElementById('status-target').innerText = "💥 ปลดปล่อยพลัง!!";
+
+                        // ==========================================
+                        // เฟส 2: ยิงลูกพลัง (พุ่งไปหาเป้าหมาย)
+                        // ==========================================
+                        const shootFrames = 25; // จำนวนเฟรมที่พุ่ง (ปรับให้น้อย=เร็วขึ้น, มาก=ช้าลง)
+                        let currentShootFrame = 0;
+                        
+                        const dxShoot = (target.position.x - spawnX) / shootFrames;
+                        const dyShoot = (target.position.y - spawnY) / shootFrames;
+
+                        const shootInterval = setInterval(async () => {
+                            currentShootFrame++;
+                            try {
+                                await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
+                                    if (itemsToUpdate && itemsToUpdate.length > 0) {
+                                        itemsToUpdate[0].position.x = spawnX + (dxShoot * currentShootFrame);
+                                        itemsToUpdate[0].position.y = spawnY + (dyShoot * currentShootFrame);
+                                    }
+                                });
+                            } catch(e) {}
+
+                            // เมื่อวิ่งชนเป้าหมาย
+                            if (currentShootFrame >= shootFrames) {
+                                clearInterval(shootInterval);
+                                setTimeout(async () => { 
+                                    await OBR.scene.items.deleteItems([projectileId]); 
+                                    resolve(); 
+                                }, 300); // รอแสดงผลแอนิเมชันตอนชน 0.3 วิแล้วค่อยลบทิ้ง
+                            }
+                        }, 40); // อัปเดตทุก 40ms ให้ดูไหลลื่น
+                    }
+                }, chargeIntervalTime);
+            });
+        }
     </script>
 </body>
 </html>
