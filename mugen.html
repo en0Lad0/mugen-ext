@@ -21,8 +21,8 @@
         <div>2. เป้าหมาย: <span id="status-target" class="wait">❌ รอคลิกขวา Lock Target</span></div>
     </div>
 
-    <!-- โซนเลือกสกิล จะถูกล็อกจนกว่าจะคลิกขวาเลือกครบ 2 อย่าง -->
     <div id="skill-section" style="opacity: 0.3; pointer-events: none;">
+        <!-- สำคัญมาก: เช็กชื่อไฟล์ GIF ให้ตรงกับใน GitHub ทุกตัวอักษรพิมพ์เล็ก-ใหญ่ -->
         <button class="btn aka" onclick="fireSkill('Aka.gif')">🔴 ยิง Aka (Red)</button>
         <button class="btn ao" onclick="fireSkill('Ao.gif')">🔵 ยิง Ao (Blue)</button>
         <button class="btn murasaki" onclick="fireSkill('Murazaki.gif')">🟣 ยิง Murasaki (Purple)</button>
@@ -76,54 +76,71 @@
             if (!casterId || !targetId) return;
 
             document.getElementById('status-target').innerText = "💥 กำลังโจมตี!!";
+            // ล็อกปุ่มกันผู้เล่นกดยิงเบิ้ล
+            document.getElementById('skill-section').style.opacity = "0.3";
+            document.getElementById('skill-section').style.pointerEvents = "none";
             
+            // ใช้ await เพื่อหยุดรอจนกว่า Animation จะวิ่งชนศัตรูเสร็จสมบูรณ์
             await playAnimation(casterId, targetId, gifFileName);
             
-            // ยิงเสร็จ ให้เคลียร์เป้าหมายทิ้ง และปิดหน้าต่าง
-            setTimeout(() => {
-                OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); 
-                OBR.popover.close("mugen-popover");
-            }, 800);
+            // พอยิงเสร็จสมบูรณ์แล้ว ค่อยล้างเป้าหมายและปิดหน้าต่าง
+            OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); 
+            OBR.popover.close("mugen-popover");
         };
 
-        async function playAnimation(sourceId, targetId, gifFileName) {
-            const items = await OBR.scene.items.getItems([sourceId, targetId]);
-            const source = items.find(i => i.id === sourceId);
-            const target = items.find(i => i.id === targetId);
+        // แปลงฟังก์ชันให้เป็น Promise เพื่อให้ระบบ "รอ" ได้
+        function playAnimation(sourceId, targetId, gifFileName) {
+            return new Promise(async (resolve) => {
+                const items = await OBR.scene.items.getItems([sourceId, targetId]);
+                const source = items.find(i => i.id === sourceId);
+                const target = items.find(i => i.id === targetId);
 
-            if(!source || !target) return;
-
-            const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
-            const fullImageUrl = new URL(gifFileName, "https://en0lad0.github.io/mugen-ext/").href;
-            
-            const projectile = {
-                id: projectileId,
-                type: "IMAGE",
-                image: { url: fullImageUrl, width: 150, height: 150, mime: "image/gif" },
-                position: source.position,
-                layer: "NOTE", 
-                disableHit: true, locked: true, visible: true
-            };
-
-            await OBR.scene.items.addItems([projectile]);
-
-            const frames = 20; 
-            let currentFrame = 0;
-            const dx = (target.position.x - source.position.x) / frames;
-            const dy = (target.position.y - source.position.y) / frames;
-
-            const animInterval = setInterval(async () => {
-                currentFrame++;
-                await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
-                    itemsToUpdate[0].position.x = source.position.x + (dx * currentFrame);
-                    itemsToUpdate[0].position.y = source.position.y + (dy * currentFrame);
-                });
-
-                if (currentFrame >= frames) {
-                    clearInterval(animInterval);
-                    setTimeout(() => { OBR.scene.items.deleteItems([projectileId]); }, 100);
+                if(!source || !target) {
+                    resolve(); // ถ้าหาไม่เจอ ให้จบการทำงานทันทีเพื่อไม่ให้หน้าต่างค้าง
+                    return;
                 }
-            }, 1000 / 30); 
+
+                const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
+                const fullImageUrl = new URL(gifFileName, "https://en0lad0.github.io/mugen-ext/").href;
+                
+                const projectile = {
+                    id: projectileId,
+                    type: "IMAGE",
+                    // ปรับขนาดลูกพลังให้ใหญ่ขึ้นนิดนึง จะได้เห็นชัดๆ
+                    image: { url: fullImageUrl, width: 250, height: 250, mime: "image/gif" },
+                    position: { x: source.position.x, y: source.position.y },
+                    layer: "ATTACHMENT", // ให้อยู่เหนือตัวละครเสมอ
+                    disableHit: true, locked: true, visible: true
+                };
+
+                await OBR.scene.items.addItems([projectile]);
+
+                const frames = 25; // ความลื่นไหลของภาพ
+                let currentFrame = 0;
+                const dx = (target.position.x - source.position.x) / frames;
+                const dy = (target.position.y - source.position.y) / frames;
+
+                const animInterval = setInterval(async () => {
+                    currentFrame++;
+                    try {
+                        await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
+                            if (itemsToUpdate && itemsToUpdate.length > 0) {
+                                itemsToUpdate[0].position.x = source.position.x + (dx * currentFrame);
+                                itemsToUpdate[0].position.y = source.position.y + (dy * currentFrame);
+                            }
+                        });
+                    } catch(e) {} // กัน Error เวลาระบบดึงภาพไม่ทัน
+
+                    if (currentFrame >= frames) {
+                        clearInterval(animInterval);
+                        // วิ่งชนเป้าหมายแล้ว รอแป๊บนึงค่อยลบลูกไฟทิ้ง
+                        setTimeout(async () => { 
+                            await OBR.scene.items.deleteItems([projectileId]); 
+                            resolve(); // ส่งสัญญาณบอกว่า "ยิงเสร็จสมบูรณ์แล้ว ปิดหน้าต่างได้เลย!"
+                        }, 200);
+                    }
+                }, 40); // ความเร็วในการวิ่ง
+            });
         }
     </script>
 </body>
