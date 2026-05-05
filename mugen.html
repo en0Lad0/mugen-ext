@@ -21,7 +21,6 @@
         <div>2. เป้าหมาย: <span id="status-target" class="wait">❌ รอคลิกขวา</span></div>
     </div>
 
-    <!-- ปุ่มยิงจะกดไม่ได้ถ้าเล็งไม่ครบ -->
     <div id="skill-section" style="opacity: 0.3; pointer-events: none;">
         <button class="btn aka" onclick="fireSkill('Aka.gif')">🔴 ยิง Aka (Red)</button>
         <button class="btn ao" onclick="fireSkill('Ao.gif')">🔵 ยิง Ao (Blue)</button>
@@ -75,56 +74,70 @@
         window.fireSkill = async (gifFileName) => {
             if (!casterId || !targetId) return;
 
-            // ล็อกหน้าต่างกันกดยิงซ้ำ
             document.getElementById('status-target').innerText = "💥 กำลังโจมตี!!";
             document.getElementById('skill-section').style.opacity = "0.3";
             document.getElementById('skill-section').style.pointerEvents = "none";
             
-            OBR.notification.show("กำลังดึงภาพแอนิเมชัน...", "INFO");
-
-            // รอยิงจนเสร็จ
-            await playAnimation(casterId, targetId, gifFileName);
+            try {
+                await playAnimation(casterId, targetId, gifFileName);
+                // ยิงเสร็จ ค่อยล้างเป้าหมาย
+                OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); 
+            } catch (err) {
+                // ถ้ามีบั๊กอะไร ให้มันแจ้งเตือนขึ้นมาเลย จะได้รู้
+                OBR.notification.show("เกิดข้อผิดพลาด: " + err.message, "ERROR");
+            }
             
-            // ยิงเสร็จ ให้เคลียร์เป้าหมายเพื่อล้างวงแหวน
-            OBR.room.setMetadata({ "en0lad0.mugen/target": undefined }); 
-            
-            // รอแป๊บนึงค่อยปิดหน้าต่าง ไม่งั้นมันจะแครช
+            // รอแป๊บเดียวแล้วปิดหน้าต่าง เพื่อให้มั่นใจว่าข้อมูลล้างเสร็จแล้ว
             setTimeout(() => {
-                // Owlbear มีข้อจำกัดเรื่องการหา ID หน้าต่างเพื่อปิดตัวเอง ให้ลองใช้วิธีปิดเมนูทั้งหมด
                 OBR.popover.close("mugen-popover"); 
             }, 500);
         };
 
         function playAnimation(sourceId, targetId, gifFileName) {
-            return new Promise(async (resolve) => {
+            return new Promise(async (resolve, reject) => {
                 const items = await OBR.scene.items.getItems([sourceId, targetId]);
                 const source = items.find(i => i.id === sourceId);
                 const target = items.find(i => i.id === targetId);
 
                 if(!source || !target) {
-                    OBR.notification.show("ข้อผิดพลาด: หา Token บนกระดานไม่เจอ", "ERROR");
-                    resolve(); 
+                    reject(new Error("หา Token ต้นทางหรือเป้าหมายไม่เจอ"));
                     return;
                 }
 
                 const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
-                // ลิงก์รูปภาพบังคับวิ่งตรงเข้า GitHub โฟลเดอร์คุณ 100%
+                
+                // จุดสังเกต: ถ้าโฟลเดอร์ใน GitHub ของคุณไม่ได้ชื่อ mugen-ext รบกวนแก้ตรงนี้ให้ตรงด้วยนะครับ!
                 const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
                 
-                const projectile = {
-                    id: projectileId,
-                    type: "IMAGE",
-                    image: { url: fullImageUrl, width: 250, height: 250, mime: "image/gif" },
-                    position: { x: source.position.x, y: source.position.y },
-                    layer: "NOTE", // ใช้เลเยอร์บนสุดของการ์ด
-                    disableHit: true, locked: true, visible: true
-                };
+                try {
+                    // โครงสร้างรูปภาพที่ถูกต้อง 100% สำหรับ Owlbear
+                    const projectile = {
+                        id: projectileId,
+                        type: "IMAGE",
+                        name: "Mugen Skill",
+                        image: { 
+                            url: fullImageUrl, 
+                            width: 250, 
+                            height: 250, 
+                            mime: "image/gif" 
+                        },
+                        position: { x: source.position.x, y: source.position.y },
+                        scale: { x: 1, y: 1 },
+                        grid: { dpi: 300, offset: { x: 125, y: 125 } },
+                        layer: "NOTE", // เปลี่ยนมาใช้ NOTE เพื่อหลีกเลี่ยงบั๊ก Attachment
+                        disableHit: true, 
+                        locked: false, 
+                        visible: true
+                    };
 
-                // สั่งสร้างรูปบนกระดาน
-                await OBR.scene.items.addItems([projectile]);
-                OBR.notification.show("โจมตี!", "SUCCESS");
+                    await OBR.scene.items.addItems([projectile]);
+                    
+                } catch (e) {
+                    reject(new Error("พังตอนสร้างรูปภาพ: " + e.message));
+                    return;
+                }
 
-                const frames = 25; 
+                const frames = 20; 
                 let currentFrame = 0;
                 const dx = (target.position.x - source.position.x) / frames;
                 const dy = (target.position.y - source.position.y) / frames;
@@ -133,18 +146,19 @@
                     currentFrame++;
                     try {
                         await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
-                            if (itemsToUpdate.length > 0) {
+                            if (itemsToUpdate && itemsToUpdate.length > 0) {
                                 itemsToUpdate[0].position.x = source.position.x + (dx * currentFrame);
                                 itemsToUpdate[0].position.y = source.position.y + (dy * currentFrame);
                             }
                         });
                     } catch(e) {}
 
+                    // เมื่อถึงเป้าหมาย
                     if (currentFrame >= frames) {
                         clearInterval(animInterval);
                         setTimeout(async () => { 
                             await OBR.scene.items.deleteItems([projectileId]); 
-                            resolve(); 
+                            resolve(); // แจ้งว่าการยิงสมบูรณ์แล้ว
                         }, 200);
                     }
                 }, 40); 
