@@ -95,7 +95,7 @@
             }
         };
 
-        // ฟังก์ชันช่วยสร้างโครงสร้างรูปภาพให้ถูกต้อง (ลดการเขียนโค้ดซ้ำ)
+        // ฟังก์ชันช่วยสร้างโครงสร้างรูปภาพให้ถูกต้อง
         function createOrb(id, url, x, y, scaleVal) {
             return {
                 id: id, type: "IMAGE", name: "Mugen Skill",
@@ -118,22 +118,14 @@
                     return;
                 }
 
-                // คำนวณเวกเตอร์และจุดเกิด (หันหน้าไปหาศัตรู)
-                const dxTotal = target.position.x - source.position.x;
-                const dyTotal = target.position.y - source.position.y;
-                const distance = Math.sqrt(dxTotal * dxTotal + dyTotal * dyTotal);
-                
-                const nx = distance > 0 ? (dxTotal / distance) : 0;
-                const ny = distance > 0 ? (dyTotal / distance) : 0;
+                // กำหนดจุดเกิดให้อยู่ "ตรงกลางตัวละครผู้ร่ายเป๊ะๆ"
+                const spawnX = source.position.x;
+                const spawnY = source.position.y;
 
-                // จุดเกิดตรงกลาง (ยื่นมาข้างหน้า 120px)
-                const spawnX = source.position.x + nx * 120;
-                const spawnY = source.position.y + ny * 120;
-
-                // ฟังก์ชันช่วยจัดการลูปแอนิเมชันให้เนียนตาและเขียนง่าย
+                // ฟังก์ชันจัดการอนิเมชันให้เนียนตา
                 const runInterval = (duration, onUpdate) => {
                     return new Promise(res => {
-                        const steps = Math.floor(duration / 40);
+                        const steps = Math.floor(duration / 40); // อัปเดตทุก 40ms
                         let current = 0;
                         const interval = setInterval(async () => {
                             current++;
@@ -151,35 +143,32 @@
 
                 if (isMurazaki) {
                     // ==========================================
-                    // โหมดท่าไม้ตาย: MURAZAKI (อลังการงานสร้าง)
+                    // โหมดท่าไม้ตาย: MURAZAKI (ยาว อลังการ ชัดเจน)
                     // ==========================================
                     const akaUrl = "https://en0lad0.github.io/mugen-ext/Aka.gif";
                     const aoUrl = "https://en0lad0.github.io/mugen-ext/Ao.gif";
                     const muraUrl = "https://en0lad0.github.io/mugen-ext/Murazaki.gif";
 
-                    // คำนวณพิกัดแกนตั้งฉาก สำหรับแยกลูกไฟออกซ้าย-ขวา
-                    const px = -ny;
-                    const py = nx;
-                    
-                    const akaX = spawnX + px * 100; // Aka ออกขวา
-                    const akaY = spawnY + py * 100;
-                    const aoX = spawnX - px * 100;  // Ao ออกซ้าย
-                    const aoY = spawnY - py * 100;
+                    // บังคับแยกออกซ้าย-ขวา 150px จากตัวผู้ร่ายตายตัว
+                    const akaX = spawnX + 150; 
+                    const akaY = spawnY;
+                    const aoX = spawnX - 150;  
+                    const aoY = spawnY;
 
                     const akaId = "anim-aka-" + Math.random().toString(36).substr(2, 9);
                     const aoId = "anim-ao-" + Math.random().toString(36).substr(2, 9);
                     const muraId = "anim-mura-" + Math.random().toString(36).substr(2, 9);
 
                     try {
-                        // สเตปที่ 1: โผล่ Aka และ Ao
+                        // สเตป 1: Aka & Ao โผล่ขึ้นมาข้างตัว และขยายใหญ่ (ใช้เวลา 2.5 วินาที)
                         document.getElementById('status-target').innerText = "🌀 รวบรวมพลัง: Aka & Ao";
                         await OBR.scene.items.addItems([
                             createOrb(akaId, akaUrl, akaX, akaY, 0.1),
                             createOrb(aoId, aoUrl, aoX, aoY, 0.1)
                         ]);
 
-                        await runInterval(2000, async (p) => {
-                            const scale = 0.1 + (0.7 * p); // ขยายจาก 0.1 เป็น 0.8
+                        await runInterval(2500, async (p) => {
+                            const scale = 0.1 + (0.9 * p); // ขยายจาก 0.1 เป็น 1.0
                             try {
                                 await OBR.scene.items.updateItems([akaId, aoId], items => {
                                     items.forEach(i => i.scale = {x: scale, y: scale});
@@ -187,30 +176,28 @@
                             } catch(e) {}
                         });
 
-                        // สเตปที่ 2: ดึงลูกไฟทั้งสองมาผสมกันตรงกลาง
+                        // สเตป 2: ดูดลูกไฟทั้งสองมาผสมกันที่กลางตัวผู้ร่าย (ใช้เวลา 2 วินาที)
                         document.getElementById('status-target').innerText = "☯️ ผสมผสานพลัง!!";
-                        await runInterval(1500, async (p) => {
+                        await runInterval(2000, async (p) => {
                             const curAkaX = akaX + (spawnX - akaX) * p;
-                            const curAkaY = akaY + (spawnY - akaY) * p;
                             const curAoX = aoX + (spawnX - aoX) * p;
-                            const curAoY = aoY + (spawnY - aoY) * p;
                             try {
                                 await OBR.scene.items.updateItems([akaId, aoId], items => {
                                     let aka = items.find(i => i.id === akaId);
                                     let ao = items.find(i => i.id === aoId);
-                                    if(aka) aka.position = {x: curAkaX, y: curAkaY};
-                                    if(ao) ao.position = {x: curAoX, y: curAoY};
+                                    if(aka) aka.position.x = curAkaX;
+                                    if(ao) ao.position.x = curAoX;
                                 });
                             } catch(e) {}
                         });
 
-                        // สเตปที่ 3: ระเบิดเป็น Murazaki และขยายใหญ่สุดๆ
+                        // สเตป 3: ลบ Aka/Ao ทิ้ง ระเบิดเป็น Murazaki ขยายลูกใหญ่ยักษ์ (ใช้เวลา 2.5 วินาที)
                         document.getElementById('status-target').innerText = "🟣 ท่าไม้ตาย: มุราซากิ!!";
                         await OBR.scene.items.deleteItems([akaId, aoId]);
                         await OBR.scene.items.addItems([createOrb(muraId, muraUrl, spawnX, spawnY, 0.5)]);
 
-                        await runInterval(2000, async (p) => {
-                            const scale = 0.5 + (1.5 * p); // ขยายจนใหญ่ถึง Scale 2.0 (ลูกยักษ์)
+                        await runInterval(2500, async (p) => {
+                            const scale = 0.5 + (2.0 * p); // ขยายจนใหญ่ถึง Scale 2.5 (ลูกยักษ์มหึมา)
                             try {
                                 await OBR.scene.items.updateItems([muraId], items => {
                                     if(items[0]) items[0].scale = {x: scale, y: scale};
@@ -218,9 +205,9 @@
                             } catch(e) {}
                         });
 
-                        // สเตปที่ 4: ยิงลูกยักษ์ใส่หน้าเป้าหมาย
+                        // สเตป 4: พุ่งไปหาเป้าหมายแบบหน่วงๆ ให้ลุ้น (ใช้เวลา 2 วินาที)
                         document.getElementById('status-target').innerText = "💥 ปลดปล่อยพลัง!!";
-                        await runInterval(1000, async (p) => {
+                        await runInterval(2000, async (p) => {
                             const curX = spawnX + (target.position.x - spawnX) * p;
                             const curY = spawnY + (target.position.y - spawnY) * p;
                             try {
@@ -230,7 +217,6 @@
                             } catch(e) {}
                         });
 
-                        // ยิงเสร็จเคลียร์ของ
                         setTimeout(async () => { await OBR.scene.items.deleteItems([muraId]); resolve(); }, 300);
 
                     } catch (e) {
@@ -239,16 +225,18 @@
 
                 } else {
                     // ==========================================
-                    // โหมดปกติ: AKA และ AO (ร่าย 2 วิแล้วยิง)
+                    // โหมดปกติ: AKA และ AO (ชาร์จช้า ยิงช้า)
                     // ==========================================
                     const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
                     const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
                     
                     try {
+                        // โผล่ตรงกลางตัวละคร
                         await OBR.scene.items.addItems([createOrb(projectileId, fullImageUrl, spawnX, spawnY, 0.1)]);
                         
+                        // ชาร์จ 2.5 วินาที
                         document.getElementById('status-target').innerText = "🌀 กำลังรวบรวมพลัง!!";
-                        await runInterval(2000, async (p) => {
+                        await runInterval(2500, async (p) => {
                             const scale = 0.1 + (0.9 * p);
                             try {
                                 await OBR.scene.items.updateItems([projectileId], items => {
@@ -257,8 +245,9 @@
                             } catch(e) {}
                         });
 
+                        // ยิงพุ่งช้าๆ 2 วินาที
                         document.getElementById('status-target').innerText = "💥 ปลดปล่อยพลัง!!";
-                        await runInterval(1000, async (p) => {
+                        await runInterval(2000, async (p) => {
                             const curX = spawnX + (target.position.x - spawnX) * p;
                             const curY = spawnY + (target.position.y - spawnY) * p;
                             try {
