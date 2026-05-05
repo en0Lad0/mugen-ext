@@ -74,7 +74,6 @@
         window.fireSkill = async (gifFileName) => {
             if (!casterId || !targetId) return;
 
-            document.getElementById('status-target').innerText = "🌀 กำลังรวบรวมพลัง!!";
             document.getElementById('skill-section').style.opacity = "0.3";
             document.getElementById('skill-section').style.pointerEvents = "none";
             
@@ -96,6 +95,18 @@
             }
         };
 
+        // ฟังก์ชันช่วยสร้างโครงสร้างรูปภาพให้ถูกต้อง (ลดการเขียนโค้ดซ้ำ)
+        function createOrb(id, url, x, y, scaleVal) {
+            return {
+                id: id, type: "IMAGE", name: "Mugen Skill",
+                image: { url: url, width: 250, height: 250, mime: "image/gif" },
+                grid: { dpi: 300, offset: { x: 125, y: 125 } },
+                position: { x: x, y: y },
+                scale: { x: scaleVal, y: scaleVal },
+                rotation: 0, layer: "PROP", disableHit: true, locked: true, visible: true, zIndex: 9999, metadata: {}
+            };
+        }
+
         function playAnimation(sourceId, targetId, gifFileName) {
             return new Promise(async (resolve, reject) => {
                 const items = await OBR.scene.items.getItems([sourceId, targetId]);
@@ -107,102 +118,162 @@
                     return;
                 }
 
-                // 1. คำนวณหา "จุดเกิด" ให้อยู่ข้างหน้าคนร่าย (หันไปทางเป้าหมาย)
+                // คำนวณเวกเตอร์และจุดเกิด (หันหน้าไปหาศัตรู)
                 const dxTotal = target.position.x - source.position.x;
                 const dyTotal = target.position.y - source.position.y;
                 const distance = Math.sqrt(dxTotal * dxTotal + dyTotal * dyTotal);
                 
-                // เลื่อนจุดเกิดออกมาข้างหน้า 120 pixels (พ้นระยะขอบตัวละครพอดี)
-                const offsetX = distance > 0 ? (dxTotal / distance) * 120 : 0;
-                const offsetY = distance > 0 ? (dyTotal / distance) * 120 : 0;
+                const nx = distance > 0 ? (dxTotal / distance) : 0;
+                const ny = distance > 0 ? (dyTotal / distance) : 0;
 
-                const spawnX = source.position.x + offsetX;
-                const spawnY = source.position.y + offsetY;
+                // จุดเกิดตรงกลาง (ยื่นมาข้างหน้า 120px)
+                const spawnX = source.position.x + nx * 120;
+                const spawnY = source.position.y + ny * 120;
 
-                const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
-                const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
-                
-                try {
-                    const projectile = {
-                        id: projectileId,
-                        type: "IMAGE",
-                        name: "Mugen Skill",
-                        image: { url: fullImageUrl, width: 250, height: 250, mime: "image/gif" },
-                        grid: { dpi: 300, offset: { x: 125, y: 125 } },
-                        position: { x: spawnX, y: spawnY },
-                        scale: { x: 0.1, y: 0.1 }, // เริ่มจากขนาด 0.1 (จิ๋วมาก)
-                        rotation: 0,
-                        layer: "PROP", 
-                        disableHit: true, 
-                        locked: true, 
-                        visible: true,
-                        zIndex: 9999,
-                        metadata: {}
-                    };
+                // ฟังก์ชันช่วยจัดการลูปแอนิเมชันให้เนียนตาและเขียนง่าย
+                const runInterval = (duration, onUpdate) => {
+                    return new Promise(res => {
+                        const steps = Math.floor(duration / 40);
+                        let current = 0;
+                        const interval = setInterval(async () => {
+                            current++;
+                            const progress = Math.min(current / steps, 1);
+                            await onUpdate(progress);
+                            if (current >= steps) {
+                                clearInterval(interval);
+                                res();
+                            }
+                        }, 40);
+                    });
+                };
 
-                    await OBR.scene.items.addItems([projectile]);
-                } catch (e) {
-                    reject(new Error("สร้างลูกไฟไม่สำเร็จ: " + String(e)));
-                    return;
-                }
+                const isMurazaki = gifFileName.includes("Murazaki");
 
-                // ==========================================
-                // เฟส 1: รวบรวมพลัง (ชาร์จ 2 วินาที)
-                // ==========================================
-                const chargeTime = 2000; // 2000 ms = 2 วินาที
-                const chargeIntervalTime = 50; // อัปเดตทุก 50ms
-                const chargeFrames = chargeTime / chargeIntervalTime; // ทั้งหมด 40 เฟรม
-                let currentCharge = 0;
+                if (isMurazaki) {
+                    // ==========================================
+                    // โหมดท่าไม้ตาย: MURAZAKI (อลังการงานสร้าง)
+                    // ==========================================
+                    const akaUrl = "https://en0lad0.github.io/mugen-ext/Aka.gif";
+                    const aoUrl = "https://en0lad0.github.io/mugen-ext/Ao.gif";
+                    const muraUrl = "https://en0lad0.github.io/mugen-ext/Murazaki.gif";
 
-                const chargeInterval = setInterval(async () => {
-                    currentCharge++;
-                    // คำนวณให้ขนาดขยายจาก 0.1 -> 1.0 ตามเปอร์เซ็นต์เวลาที่ผ่านไป
-                    const scaleValue = 0.1 + (0.9 * (currentCharge / chargeFrames));
+                    // คำนวณพิกัดแกนตั้งฉาก สำหรับแยกลูกไฟออกซ้าย-ขวา
+                    const px = -ny;
+                    const py = nx;
+                    
+                    const akaX = spawnX + px * 100; // Aka ออกขวา
+                    const akaY = spawnY + py * 100;
+                    const aoX = spawnX - px * 100;  // Ao ออกซ้าย
+                    const aoY = spawnY - py * 100;
+
+                    const akaId = "anim-aka-" + Math.random().toString(36).substr(2, 9);
+                    const aoId = "anim-ao-" + Math.random().toString(36).substr(2, 9);
+                    const muraId = "anim-mura-" + Math.random().toString(36).substr(2, 9);
 
                     try {
-                        await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
-                            if (itemsToUpdate && itemsToUpdate.length > 0) {
-                                itemsToUpdate[0].scale = { x: scaleValue, y: scaleValue };
-                            }
-                        });
-                    } catch(e) {}
+                        // สเตปที่ 1: โผล่ Aka และ Ao
+                        document.getElementById('status-target').innerText = "🌀 รวบรวมพลัง: Aka & Ao";
+                        await OBR.scene.items.addItems([
+                            createOrb(akaId, akaUrl, akaX, akaY, 0.1),
+                            createOrb(aoId, aoUrl, aoX, aoY, 0.1)
+                        ]);
 
-                    // เมื่อชาร์จครบ 2 วินาที ให้หยุดชาร์จแล้วเริ่มยิง!
-                    if (currentCharge >= chargeFrames) {
-                        clearInterval(chargeInterval);
-                        document.getElementById('status-target').innerText = "💥 ปลดปล่อยพลัง!!";
-
-                        // ==========================================
-                        // เฟส 2: ยิงลูกพลัง (พุ่งไปหาเป้าหมาย)
-                        // ==========================================
-                        const shootFrames = 25; // จำนวนเฟรมที่พุ่ง (ปรับให้น้อย=เร็วขึ้น, มาก=ช้าลง)
-                        let currentShootFrame = 0;
-                        
-                        const dxShoot = (target.position.x - spawnX) / shootFrames;
-                        const dyShoot = (target.position.y - spawnY) / shootFrames;
-
-                        const shootInterval = setInterval(async () => {
-                            currentShootFrame++;
+                        await runInterval(2000, async (p) => {
+                            const scale = 0.1 + (0.7 * p); // ขยายจาก 0.1 เป็น 0.8
                             try {
-                                await OBR.scene.items.updateItems([projectileId], (itemsToUpdate) => {
-                                    if (itemsToUpdate && itemsToUpdate.length > 0) {
-                                        itemsToUpdate[0].position.x = spawnX + (dxShoot * currentShootFrame);
-                                        itemsToUpdate[0].position.y = spawnY + (dyShoot * currentShootFrame);
-                                    }
+                                await OBR.scene.items.updateItems([akaId, aoId], items => {
+                                    items.forEach(i => i.scale = {x: scale, y: scale});
                                 });
                             } catch(e) {}
+                        });
 
-                            // เมื่อวิ่งชนเป้าหมาย
-                            if (currentShootFrame >= shootFrames) {
-                                clearInterval(shootInterval);
-                                setTimeout(async () => { 
-                                    await OBR.scene.items.deleteItems([projectileId]); 
-                                    resolve(); 
-                                }, 300); // รอแสดงผลแอนิเมชันตอนชน 0.3 วิแล้วค่อยลบทิ้ง
-                            }
-                        }, 40); // อัปเดตทุก 40ms ให้ดูไหลลื่น
+                        // สเตปที่ 2: ดึงลูกไฟทั้งสองมาผสมกันตรงกลาง
+                        document.getElementById('status-target').innerText = "☯️ ผสมผสานพลัง!!";
+                        await runInterval(1500, async (p) => {
+                            const curAkaX = akaX + (spawnX - akaX) * p;
+                            const curAkaY = akaY + (spawnY - akaY) * p;
+                            const curAoX = aoX + (spawnX - aoX) * p;
+                            const curAoY = aoY + (spawnY - aoY) * p;
+                            try {
+                                await OBR.scene.items.updateItems([akaId, aoId], items => {
+                                    let aka = items.find(i => i.id === akaId);
+                                    let ao = items.find(i => i.id === aoId);
+                                    if(aka) aka.position = {x: curAkaX, y: curAkaY};
+                                    if(ao) ao.position = {x: curAoX, y: curAoY};
+                                });
+                            } catch(e) {}
+                        });
+
+                        // สเตปที่ 3: ระเบิดเป็น Murazaki และขยายใหญ่สุดๆ
+                        document.getElementById('status-target').innerText = "🟣 ท่าไม้ตาย: มุราซากิ!!";
+                        await OBR.scene.items.deleteItems([akaId, aoId]);
+                        await OBR.scene.items.addItems([createOrb(muraId, muraUrl, spawnX, spawnY, 0.5)]);
+
+                        await runInterval(2000, async (p) => {
+                            const scale = 0.5 + (1.5 * p); // ขยายจนใหญ่ถึง Scale 2.0 (ลูกยักษ์)
+                            try {
+                                await OBR.scene.items.updateItems([muraId], items => {
+                                    if(items[0]) items[0].scale = {x: scale, y: scale};
+                                });
+                            } catch(e) {}
+                        });
+
+                        // สเตปที่ 4: ยิงลูกยักษ์ใส่หน้าเป้าหมาย
+                        document.getElementById('status-target').innerText = "💥 ปลดปล่อยพลัง!!";
+                        await runInterval(1000, async (p) => {
+                            const curX = spawnX + (target.position.x - spawnX) * p;
+                            const curY = spawnY + (target.position.y - spawnY) * p;
+                            try {
+                                await OBR.scene.items.updateItems([muraId], items => {
+                                    if(items[0]) items[0].position = {x: curX, y: curY};
+                                });
+                            } catch(e) {}
+                        });
+
+                        // ยิงเสร็จเคลียร์ของ
+                        setTimeout(async () => { await OBR.scene.items.deleteItems([muraId]); resolve(); }, 300);
+
+                    } catch (e) {
+                        reject(new Error("การสร้างภาพล้มเหลว"));
                     }
-                }, chargeIntervalTime);
+
+                } else {
+                    // ==========================================
+                    // โหมดปกติ: AKA และ AO (ร่าย 2 วิแล้วยิง)
+                    // ==========================================
+                    const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
+                    const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
+                    
+                    try {
+                        await OBR.scene.items.addItems([createOrb(projectileId, fullImageUrl, spawnX, spawnY, 0.1)]);
+                        
+                        document.getElementById('status-target').innerText = "🌀 กำลังรวบรวมพลัง!!";
+                        await runInterval(2000, async (p) => {
+                            const scale = 0.1 + (0.9 * p);
+                            try {
+                                await OBR.scene.items.updateItems([projectileId], items => {
+                                    if(items[0]) items[0].scale = {x: scale, y: scale};
+                                });
+                            } catch(e) {}
+                        });
+
+                        document.getElementById('status-target').innerText = "💥 ปลดปล่อยพลัง!!";
+                        await runInterval(1000, async (p) => {
+                            const curX = spawnX + (target.position.x - spawnX) * p;
+                            const curY = spawnY + (target.position.y - spawnY) * p;
+                            try {
+                                await OBR.scene.items.updateItems([projectileId], items => {
+                                    if(items[0]) items[0].position = {x: curX, y: curY};
+                                });
+                            } catch(e) {}
+                        });
+
+                        setTimeout(async () => { await OBR.scene.items.deleteItems([projectileId]); resolve(); }, 300);
+
+                    } catch (e) {
+                        reject(new Error("การสร้างภาพล้มเหลว"));
+                    }
+                }
             });
         }
     </script>
