@@ -28,8 +28,7 @@
     </div>
 
     <script type="module">
-        // สังเกตตรงนี้: เรา Import คำสั่ง buildImage มาใช้งานด้วย
-        import OBR, { buildImage } from "https://esm.sh/@owlbear-rodeo/sdk";
+        import OBR from "https://esm.sh/@owlbear-rodeo/sdk";
 
         let casterId = null;
         let targetId = null;
@@ -89,11 +88,10 @@
                 }, 500);
 
             } catch (err) {
-                // ถ้าบั๊ก ให้ดึงข้อความ Error มาโชว์ให้ชัดเจน
-                let errMsg = err ? (err.message || JSON.stringify(err)) : "ไม่ทราบสาเหตุ";
+                // ถ้าบั๊ก ให้ดึงข้อความ Error มาโชว์ให้ชัดเจน และดีดปุ่มกลับให้กดใหม่ได้
+                let errMsg = err ? (err.message || String(err)) : "ไม่ทราบสาเหตุ";
                 OBR.notification.show("เกิดข้อผิดพลาด: " + errMsg, "ERROR");
                 
-                // ปลดล็อกปุ่มให้กดยิงใหม่ได้ ไม่ต้องค้าง
                 document.getElementById('status-target').innerText = "✅ ล็อกเป้าแล้ว!";
                 document.getElementById('skill-section').style.opacity = "1";
                 document.getElementById('skill-section').style.pointerEvents = "auto";
@@ -115,30 +113,36 @@
                 const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
                 
                 try {
-                    // ใช้ buildImage เพื่อให้ Owlbear เติมข้อมูลที่ขาดให้ครบ 100%
-                    const projectile = buildImage(
-                        { 
+                    // โครงสร้างแบบ Manual ที่สมบูรณ์ 100% เลี่ยงการใช้คำสั่งที่ระบบมองไม่เห็น
+                    const projectile = {
+                        id: projectileId,
+                        type: "IMAGE",
+                        name: "Mugen Skill",
+                        image: { 
                             url: fullImageUrl, 
                             width: 250, 
                             height: 250, 
                             mime: "image/gif" 
                         },
-                        { 
+                        grid: { 
                             dpi: 300, 
                             offset: { x: 125, y: 125 } 
-                        }
-                    )
-                    .id(projectileId)
-                    .position(source.position)
-                    .layer("NOTE") 
-                    .disableHit(true)
-                    .locked(true)
-                    .build();
+                        },
+                        position: { x: source.position.x, y: source.position.y },
+                        scale: { x: 1, y: 1 },
+                        rotation: 0,
+                        layer: "PROP", // เปลี่ยนมาใช้เลเยอร์ PROP ปลอดภัยและครอบคลุมที่สุด
+                        disableHit: true, 
+                        locked: true, 
+                        visible: true,
+                        zIndex: 9999, // บังคับให้อยู่บนสุด
+                        metadata: {}
+                    };
 
                     await OBR.scene.items.addItems([projectile]);
                     
                 } catch (e) {
-                    reject(e);
+                    reject(new Error("สร้างลูกไฟไม่สำเร็จ: " + (e.message || String(e))));
                     return;
                 }
 
