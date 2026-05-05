@@ -11,12 +11,13 @@
         const ICON_URL = "https://en0lad0.github.io/mugen-ext/icon.svg";
 
         OBR.onReady(() => {
-            // 1. เมนูคลิกขวา: ตั้งค่าคนร่าย (เอา Filter ออก ให้โชว์เสมอ)
+            // 1. เมนูคลิกขวา: ตั้งค่าคนร่าย (กรองให้โชว์กับ "รูปภาพ" ทุกชนิดบนกระดาน)
             OBR.contextMenu.create({
-                id: "en0lad0.mugen/set-caster",
+                id: "mugen-set-caster",
                 icons: [{ 
                     icon: ICON_URL, 
-                    label: "1. Set as Mugen Caster" 
+                    label: "1. Set as Mugen Caster",
+                    filter: { every: [{ key: "type", value: "IMAGE" }] }
                 }],
                 onClick: (context) => {
                     const casterId = context.items[0].id;
@@ -25,12 +26,13 @@
                 }
             });
 
-            // 2. เมนูคลิกขวา: ล็อกเป้าศัตรู (เอา Filter ออก ให้โชว์เสมอ)
+            // 2. เมนูคลิกขวา: ล็อกเป้าศัตรู (กรองให้โชว์กับ "รูปภาพ" ทุกชนิดเช่นกัน)
             OBR.contextMenu.create({
-                id: "en0lad0.mugen/lock-target",
+                id: "mugen-lock-target",
                 icons: [{ 
                     icon: ICON_URL, 
-                    label: "2. Lock Target (Mugen)" 
+                    label: "2. Lock Target (Mugen)",
+                    filter: { every: [{ key: "type", value: "IMAGE" }] }
                 }],
                 onClick: async (context) => {
                     const targetId = context.items[0].id;
@@ -60,6 +62,8 @@
             const items = await OBR.scene.items.getItems([tId]);
             if (items.length === 0) return;
             const target = items[0];
+            
+            // ดึงขนาดของ Token เพื่อวาดวงแหวนให้พอดี
             const markSize = target.image ? Math.max(target.image.width, target.image.height) * 1.5 : 300;
 
             const mark = {
