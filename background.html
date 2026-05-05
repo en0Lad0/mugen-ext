@@ -11,10 +11,14 @@
         const ICON_URL = "https://en0lad0.github.io/mugen-ext/icon.svg";
 
         OBR.onReady(() => {
-            // 1. เมนูคลิกขวา: ตั้งค่าคนร่าย
+            // 1. เมนูคลิกขวา: ตั้งค่าคนร่าย (โชว์เมื่อคลิกตัวละคร/สิ่งของ/สัตว์ขี่)
             OBR.contextMenu.create({
                 id: "mugen-set-caster",
-                icons: [{ icon: ICON_URL, label: "1. Set as Mugen Caster" }],
+                icons: [{ 
+                    icon: ICON_URL, 
+                    label: "1. Set as Mugen Caster",
+                    filter: { some: [{ key: "layer", value: "CHARACTER" }, { key: "layer", value: "PROP" }, { key: "layer", value: "MOUNT" }] }
+                }],
                 onClick: (context) => {
                     const casterId = context.items[0].id;
                     OBR.room.setMetadata({ "en0lad0.mugen/caster": casterId });
@@ -22,14 +26,17 @@
                 }
             });
 
-            // 2. เมนูคลิกขวา: ล็อกเป้าศัตรู
+            // 2. เมนูคลิกขวา: ล็อกเป้าศัตรู (แก้บั๊กโดยการเติม Filter ให้มันโชว์แล้ว!)
             OBR.contextMenu.create({
                 id: "mugen-lock-target",
-                icons: [{ icon: ICON_URL, label: "2. Lock Target (Mugen)" }],
+                icons: [{ 
+                    icon: ICON_URL, 
+                    label: "2. Lock Target (Mugen)",
+                    filter: { some: [{ key: "layer", value: "CHARACTER" }, { key: "layer", value: "PROP" }, { key: "layer", value: "MOUNT" }] }
+                }],
                 onClick: async (context) => {
                     const targetId = context.items[0].id;
                     
-                    // เช็กว่าไม่ได้เผลอกดล็อกเป้าตัวเอง
                     const metadata = await OBR.room.getMetadata();
                     if (metadata["en0lad0.mugen/caster"] === targetId) {
                         OBR.notification.show("ล็อกเป้าใส่ตัวเองไม่ได้นะ!", "ERROR");
@@ -42,7 +49,7 @@
                 }
             });
 
-            // 3. ระบบลบวงแหวนอัตโนมัติ ถ้ายิงเสร็จแล้วมีการเคลียร์ค่าเป้าหมาย
+            // 3. ระบบลบวงแหวนอัตโนมัติ
             OBR.room.onMetadataChange((metadata) => {
                 if (!metadata["en0lad0.mugen/target"]) {
                     OBR.scene.items.deleteItems([TARGET_MARK_ID]);
