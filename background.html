@@ -105,7 +105,7 @@
 
             if(!source || !target) return;
 
-            // 🎯 แก้ปัญหาเล็งไม่ตรง: ใช้ getItemBounds เพื่อหา "จุดกึ่งกลางที่แท้จริง" ของรูปภาพ (แก้บั๊กยิงทะลุ)
+            // ดึงจุดกึ่งกลางที่แท้จริงของ Token
             const sourceBounds = await OBR.scene.items.getItemBounds([sourceId]);
             const targetBounds = await OBR.scene.items.getItemBounds([targetId]);
 
@@ -114,16 +114,20 @@
             const targetX = targetBounds.center.x;
             const targetY = targetBounds.center.y;
 
-            // คำนวณเวกเตอร์ทิศทาง เพื่อใช้แยกซ้าย-ขวา
+            // หาเวกเตอร์ทิศทางจากคนร่ายไปหาเป้าหมาย
             const dx = targetX - spawnX;
             const dy = targetY - spawnY;
             const distance = Math.sqrt(dx * dx + dy * dy);
             const nx = distance > 0 ? dx / distance : 0;
             const ny = distance > 0 ? dy / distance : -1;
 
+            // 🎯 กำหนดจุด "ผสมพลัง (Merge Point)" ให้อยู่ข้างหน้าคนร่าย 100px
+            const mergeX = spawnX + nx * 100;
+            const mergeY = spawnY + ny * 100;
+
             const runInterval = (duration, onUpdate) => {
                 return new Promise(res => {
-                    const steps = Math.floor(duration / 30); // 30ms ต่อเฟรม ลื่นปรื๊ด
+                    const steps = Math.floor(duration / 30); // วิ่งลื่นๆ ที่ 30ms
                     let current = 0;
                     const interval = setInterval(async () => {
                         current++;
@@ -141,25 +145,25 @@
 
             if (isMurazaki) {
                 // ==========================================
-                // 🟣 โหมดมุราซากิ (Ao ซ้าย, Aka ขวา เสมอ!)
+                // 🟣 โหมดมุราซากิ (Ao ซ้าย, Aka ขวา วิ่งมาผสมกันตรงกลาง)
                 // ==========================================
                 const akaUrl = "https://en0lad0.github.io/mugen-ext/Aka.gif";
                 const aoUrl = "https://en0lad0.github.io/mugen-ext/Ao.gif";
                 const muraUrl = "https://en0lad0.github.io/mugen-ext/Murazaki.gif";
 
-                // คำนวณแกนตั้งฉาก (Ao ซ้าย, Aka ขวา) อิงจากหน้าคนยิง
-                const offsetDist = 120;
-                const aoX = spawnX + ny * offsetDist;
-                const aoY = spawnY - nx * offsetDist;
-                const akaX = spawnX - ny * offsetDist;
-                const akaY = spawnY + nx * offsetDist;
+                // ให้วงกลมสองสีห่างกันข้างละ 130px โดยอิงจากจุด Merge Point ตรงกลาง
+                const offsetDist = 130;
+                const aoX = mergeX + ny * offsetDist;
+                const aoY = mergeY - nx * offsetDist;
+                const akaX = mergeX - ny * offsetDist;
+                const akaY = mergeY + nx * offsetDist;
 
                 const akaId = "anim-aka-" + Math.random().toString(36).substr(2, 9);
                 const aoId = "anim-ao-" + Math.random().toString(36).substr(2, 9);
                 const muraId = "anim-mura-" + Math.random().toString(36).substr(2, 9);
 
                 try {
-                    // เฟส 1: โผล่มาขยายร่าง 0.6 วิ
+                    // เฟส 1: โผล่และขยายตัวด้านข้าง (0.6 วิ)
                     await OBR.scene.local.addItems([
                         createOrb(source, akaId, akaUrl, akaX, akaY, 0.1),
                         createOrb(source, aoId, aoUrl, aoX, aoY, 0.1)
@@ -173,12 +177,12 @@
                         } catch(e) {}
                     });
 
-                    // เฟส 2: พุ่งชนตรงกลางตัวผู้ร่าย 0.4 วิ
+                    // เฟส 2: ดึงมาผสมกันที่ Merge Point (0.4 วิ)
                     await runInterval(400, async (p) => {
-                        const curAkaX = akaX + (spawnX - akaX) * p;
-                        const curAkaY = akaY + (spawnY - akaY) * p;
-                        const curAoX = aoX + (spawnX - aoX) * p;
-                        const curAoY = aoY + (spawnY - aoY) * p;
+                        const curAkaX = akaX + (mergeX - akaX) * p;
+                        const curAkaY = akaY + (mergeY - akaY) * p;
+                        const curAoX = aoX + (mergeX - aoX) * p;
+                        const curAoY = aoY + (mergeY - aoY) * p;
                         try {
                             await OBR.scene.local.updateItems([akaId, aoId], items => {
                                 let aka = items.find(i => i.id === akaId);
@@ -189,11 +193,11 @@
                         } catch(e) {}
                     });
 
-                    // เฟส 3: บึ้มเป็นมุราซากิ 0.5 วิ
+                    // เฟส 3: ตู้มเป็นมุราซากิ (0.5 วิ) เกิดตรงจุดที่ผสมกันเป๊ะๆ!
                     await OBR.scene.local.deleteItems([akaId, aoId]);
-                    await OBR.scene.local.addItems([createOrb(source, muraId, muraUrl, spawnX, spawnY, 0.5)]);
+                    await OBR.scene.local.addItems([createOrb(source, muraId, muraUrl, mergeX, mergeY, 0.5)]);
                     await runInterval(500, async (p) => {
-                        const scale = 0.5 + (2.0 * p); 
+                        const scale = 0.5 + (2.0 * p); // ขยายร่างเป็น 2.5
                         try {
                             await OBR.scene.local.updateItems([muraId], items => {
                                 if(items[0]) items[0].scale = {x: scale, y: scale};
@@ -201,13 +205,13 @@
                         } catch(e) {}
                     });
 
-                    // เฟส 4: ค้างโชว์พลังตรงกลาง Token ตัวผู้ร่าย 2 วิ
+                    // เฟส 4: ค้างโชว์ตรงจุด Merge (2.0 วิ)
                     await new Promise(r => setTimeout(r, 2000));
 
-                    // เฟส 5: พุ่งเสียบเป้าหมาย 0.5 วิ
-                    await runInterval(500, async (p) => {
-                        const curX = spawnX + (targetX - spawnX) * p;
-                        const curY = spawnY + (targetY - spawnY) * p;
+                    // เฟส 5: พุ่งเสียบเป้าหมาย (0.4 วิ - ไวขึ้นนิดนึงให้ดูรุนแรง)
+                    await runInterval(400, async (p) => {
+                        const curX = mergeX + (targetX - mergeX) * p;
+                        const curY = mergeY + (targetY - mergeY) * p;
                         try {
                             await OBR.scene.local.updateItems([muraId], items => {
                                 if(items[0]) items[0].position = {x: curX, y: curY};
@@ -215,7 +219,8 @@
                         } catch(e) {}
                     });
 
-                    // พอถึงจุดกึ่งกลางเป้าหมาย ลบทิ้งทันที ไม่มีหลุดขอบหรือเลยทะลุ!
+                    // 🎯 เฟส 6: "หน่วงเวลาการลบ 0.3 วินาที" เพื่อให้กราฟิกวิ่งไปทับเป้าหมายจนมิดก่อนหายไป!
+                    await new Promise(r => setTimeout(r, 300));
                     await OBR.scene.local.deleteItems([muraId]);
 
                 } catch (e) {}
@@ -228,9 +233,10 @@
                 const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
                 
                 try {
-                    await OBR.scene.local.addItems([createOrb(source, projectileId, fullImageUrl, spawnX, spawnY, 0.1)]);
+                    // ให้ลูกไฟโผล่ตรงจุด Merge Point (ข้างหน้าคนร่าย) เลย จะได้ไม่ทับตัวคนร่าย
+                    await OBR.scene.local.addItems([createOrb(source, projectileId, fullImageUrl, mergeX, mergeY, 0.1)]);
                     
-                    // เฟส 1: โผล่ขึ้นมาตรงกลาง 0.6 วิ
+                    // เฟส 1: ขยายตัว (0.6 วิ)
                     await runInterval(600, async (p) => {
                         const scale = 0.1 + (0.9 * p);
                         try {
@@ -240,13 +246,13 @@
                         } catch(e) {}
                     });
 
-                    // เฟส 2: ค้างรวบรวมพลัง 2 วิ
+                    // เฟส 2: ค้าง 2 วิ
                     await new Promise(r => setTimeout(r, 2000));
 
-                    // เฟส 3: พุ่งชนเป้าหมาย 0.5 วิ
-                    await runInterval(500, async (p) => {
-                        const curX = spawnX + (targetX - spawnX) * p;
-                        const curY = spawnY + (targetY - spawnY) * p;
+                    // เฟส 3: พุ่งชนเป้าหมาย (0.4 วิ)
+                    await runInterval(400, async (p) => {
+                        const curX = mergeX + (targetX - mergeX) * p;
+                        const curY = mergeY + (targetY - mergeY) * p;
                         try {
                             await OBR.scene.local.updateItems([projectileId], items => {
                                 if(items[0]) items[0].position = {x: curX, y: curY};
@@ -254,7 +260,8 @@
                         } catch(e) {}
                     });
 
-                    // ลบทิ้งเมื่อถึงกึ่งกลางศัตรู
+                    // หน่วงเวลาให้ภาพถึงเป้าหมายก่อนลบ
+                    await new Promise(r => setTimeout(r, 300));
                     await OBR.scene.local.deleteItems([projectileId]);
 
                 } catch (e) {}
