@@ -3,7 +3,7 @@
   "version": "1.3.0",
   "manifest_version": 1,
   "author": "DM",
-  "background_url": "https://en0lad0.github.io/mugen-ext/background.html?v=101",
+  "background_url": "https://en0lad0.github.io/mugen-ext/background.html",
   "action": {
     "title": "Mugen",
     "icon": "https://en0lad0.github.io/mugen-ext/icon.svg",
