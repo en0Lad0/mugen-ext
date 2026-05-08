@@ -53,7 +53,6 @@
                 }
             });
 
-            // รอรับคำสั่งจากปุ่มกด
             OBR.broadcast.onMessage("en0lad0.mugen/anim", async (event) => {
                 const data = event.data;
                 await playLocalAnimation(data.casterId, data.targetId, data.gifFileName);
@@ -81,7 +80,6 @@
             await OBR.scene.items.addItems([mark]);
         }
 
-        // ฟังก์ชันช่วยก๊อปปี้ Token เลี่ยงบั๊กเซิร์ฟเวอร์
         function createOrb(baseToken, id, url, x, y, scaleVal) {
             const orb = JSON.parse(JSON.stringify(baseToken)); 
             orb.id = id;
@@ -100,7 +98,6 @@
             return orb;
         }
 
-        // สร้างภาพลวงตา Local เฉพาะบนหน้าจอ (ทำงานไหลลื่น ไม่แคร์ Server)
         async function playLocalAnimation(sourceId, targetId, gifFileName) {
             const items = await OBR.scene.items.getItems([sourceId, targetId]);
             const source = items.find(i => i.id === sourceId);
@@ -108,12 +105,22 @@
 
             if(!source || !target) return;
 
+            // พิกัดผู้ร่าย และ เป้าหมาย
             const spawnX = source.position.x;
             const spawnY = source.position.y;
+            const targetX = target.position.x;
+            const targetY = target.position.y;
+
+            // คำนวณเวกเตอร์ทิศทาง (หันหน้าไปหาศัตรู)
+            const dx = targetX - spawnX;
+            const dy = targetY - spawnY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const nx = distance > 0 ? dx / distance : 0;
+            const ny = distance > 0 ? dy / distance : -1;
 
             const runInterval = (duration, onUpdate) => {
                 return new Promise(res => {
-                    const steps = Math.floor(duration / 40); 
+                    const steps = Math.floor(duration / 30); // อัปเดตไวขึ้นเป็นทุกๆ 30ms เพื่อความลื่นไหล
                     let current = 0;
                     const interval = setInterval(async () => {
                         current++;
@@ -123,7 +130,7 @@
                             clearInterval(interval);
                             res();
                         }
-                    }, 40);
+                    }, 30);
                 });
             };
 
@@ -131,29 +138,30 @@
 
             if (isMurazaki) {
                 // ==========================================
-                // โหมดมุราซากิ (9 วินาที อลังการงานสร้าง)
+                // โหมดมุราซากิ (เร็วขึ้น 2x + ซ้ายขวาอัตโนมัติ)
                 // ==========================================
                 const akaUrl = "https://en0lad0.github.io/mugen-ext/Aka.gif";
                 const aoUrl = "https://en0lad0.github.io/mugen-ext/Ao.gif";
                 const muraUrl = "https://en0lad0.github.io/mugen-ext/Murazaki.gif";
 
-                const akaX = spawnX + 150; 
-                const akaY = spawnY;
-                const aoX = spawnX - 150;  
-                const aoY = spawnY;
+                // คำนวณให้ Ao อยู่ซ้าย, Aka อยู่ขวา เสมอ (เทียบกับทิศที่หันไปหาเป้าหมาย)
+                const offsetDist = 120;
+                const aoX = spawnX + ny * offsetDist;
+                const aoY = spawnY - nx * offsetDist;
+                const akaX = spawnX - ny * offsetDist;
+                const akaY = spawnY + nx * offsetDist;
 
                 const akaId = "anim-aka-" + Math.random().toString(36).substr(2, 9);
                 const aoId = "anim-ao-" + Math.random().toString(36).substr(2, 9);
                 const muraId = "anim-mura-" + Math.random().toString(36).substr(2, 9);
 
                 try {
-                    // ใช้ local.addItems สร้างภาพลวงตาแบบ Embers
+                    // เฟส 1: โผล่มาด้านข้างอย่างรวดเร็ว (0.6 วินาที)
                     await OBR.scene.local.addItems([
                         createOrb(source, akaId, akaUrl, akaX, akaY, 0.1),
                         createOrb(source, aoId, aoUrl, aoX, aoY, 0.1)
                     ]);
-
-                    await runInterval(2500, async (p) => {
+                    await runInterval(600, async (p) => {
                         const scale = 0.1 + (0.9 * p);
                         try {
                             await OBR.scene.local.updateItems([akaId, aoId], items => {
@@ -162,23 +170,26 @@
                         } catch(e) {}
                     });
 
-                    await runInterval(2000, async (p) => {
+                    // เฟส 2: ดูดเข้าหากันตรงกลางอย่างไว (0.4 วินาที)
+                    await runInterval(400, async (p) => {
                         const curAkaX = akaX + (spawnX - akaX) * p;
+                        const curAkaY = akaY + (spawnY - akaY) * p;
                         const curAoX = aoX + (spawnX - aoX) * p;
+                        const curAoY = aoY + (spawnY - aoY) * p;
                         try {
                             await OBR.scene.local.updateItems([akaId, aoId], items => {
                                 let aka = items.find(i => i.id === akaId);
                                 let ao = items.find(i => i.id === aoId);
-                                if(aka) aka.position.x = curAkaX;
-                                if(ao) ao.position.x = curAoX;
+                                if(aka) aka.position = {x: curAkaX, y: curAkaY};
+                                if(ao) ao.position = {x: curAoX, y: curAoY};
                             });
                         } catch(e) {}
                     });
 
+                    // เฟส 3: ระเบิดเป็นมุราซากิลูกยักษ์ (0.5 วินาที)
                     await OBR.scene.local.deleteItems([akaId, aoId]);
                     await OBR.scene.local.addItems([createOrb(source, muraId, muraUrl, spawnX, spawnY, 0.5)]);
-
-                    await runInterval(2500, async (p) => {
+                    await runInterval(500, async (p) => {
                         const scale = 0.5 + (2.0 * p); 
                         try {
                             await OBR.scene.local.updateItems([muraId], items => {
@@ -187,9 +198,13 @@
                         } catch(e) {}
                     });
 
-                    await runInterval(2000, async (p) => {
-                        const curX = spawnX + (target.position.x - spawnX) * p;
-                        const curY = spawnY + (target.position.y - spawnY) * p;
+                    // เฟส 4: ค้างโชว์ความเท่ตรงกลางตัวละคร (2.0 วินาที)
+                    await new Promise(r => setTimeout(r, 2000));
+
+                    // เฟส 5: พุ่งทะลวงเป้าหมายด้วยความเร็วสูง (0.5 วินาที)
+                    await runInterval(500, async (p) => {
+                        const curX = spawnX + (targetX - spawnX) * p;
+                        const curY = spawnY + (targetY - spawnY) * p;
                         try {
                             await OBR.scene.local.updateItems([muraId], items => {
                                 if(items[0]) items[0].position = {x: curX, y: curY};
@@ -197,13 +212,14 @@
                         } catch(e) {}
                     });
 
-                    setTimeout(async () => { await OBR.scene.local.deleteItems([muraId]); }, 300);
+                    // ลบทิ้งทันทีที่ถึงเป้าหมาย (กันบั๊กเลยทะลุ)
+                    setTimeout(async () => { await OBR.scene.local.deleteItems([muraId]); }, 50);
 
                 } catch (e) {}
 
             } else {
                 // ==========================================
-                // โหมดปกติ (Aka / Ao) ชาร์จ 2.5 วิ ยิง 2 วิ
+                // โหมดปกติ (Aka / Ao) สปีด 2x
                 // ==========================================
                 const projectileId = "anim-" + Math.random().toString(36).substr(2, 9);
                 const fullImageUrl = "https://en0lad0.github.io/mugen-ext/" + gifFileName;
@@ -211,7 +227,8 @@
                 try {
                     await OBR.scene.local.addItems([createOrb(source, projectileId, fullImageUrl, spawnX, spawnY, 0.1)]);
                     
-                    await runInterval(2500, async (p) => {
+                    // เฟส 1: โผล่ขึ้นมาตรงกลาง (0.6 วินาที)
+                    await runInterval(600, async (p) => {
                         const scale = 0.1 + (0.9 * p);
                         try {
                             await OBR.scene.local.updateItems([projectileId], items => {
@@ -220,9 +237,13 @@
                         } catch(e) {}
                     });
 
-                    await runInterval(2000, async (p) => {
-                        const curX = spawnX + (target.position.x - spawnX) * p;
-                        const curY = spawnY + (target.position.y - spawnY) * p;
+                    // เฟส 2: ค้างโชว์ความเท่ตรงกลางตัวละคร (2.0 วินาที)
+                    await new Promise(r => setTimeout(r, 2000));
+
+                    // เฟส 3: พุ่งอัดเป้าหมายด้วยความเร็วสูง (0.5 วินาที)
+                    await runInterval(500, async (p) => {
+                        const curX = spawnX + (targetX - spawnX) * p;
+                        const curY = spawnY + (targetY - spawnY) * p;
                         try {
                             await OBR.scene.local.updateItems([projectileId], items => {
                                 if(items[0]) items[0].position = {x: curX, y: curY};
@@ -230,7 +251,8 @@
                         } catch(e) {}
                     });
 
-                    setTimeout(async () => { await OBR.scene.local.deleteItems([projectileId]); }, 300);
+                    // ลบทิ้งทันทีเมื่อถึงเป้าหมาย
+                    setTimeout(async () => { await OBR.scene.local.deleteItems([projectileId]); }, 50);
 
                 } catch (e) {}
             }
